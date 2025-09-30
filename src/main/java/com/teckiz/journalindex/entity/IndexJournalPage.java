@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * IndexJournalPage entity representing journal pages
  */
 @Entity
-@Table(name = "index_journal_pages")
+@Table(name = "indexJournalPage")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalPage {
     

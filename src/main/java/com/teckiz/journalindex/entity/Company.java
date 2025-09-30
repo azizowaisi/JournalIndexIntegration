@@ -13,7 +13,7 @@ import java.util.List;
  * Company entity representing organizations in the journal indexing system
  */
 @Entity
-@Table(name = "companies")
+@Table(name = "company")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Company {
     

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * IndexImportQueue entity representing import queue items
  */
 @Entity
-@Table(name = "index_import_queues")
+@Table(name = "indexImportQueue")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexImportQueue {
     

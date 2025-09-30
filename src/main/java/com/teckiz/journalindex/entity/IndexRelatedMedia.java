@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * IndexRelatedMedia entity representing related media files
  */
 @Entity
-@Table(name = "index_related_media", indexes = {
+@Table(name = "indexRelatedMedia", indexes = {
     @Index(name = "idx_related_media_key", columnList = "related_media_key, reference_key, related_media_type")
 })
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

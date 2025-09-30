@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * IndexLanguage entity representing languages in the indexing system
  */
 @Entity
-@Table(name = "index_languages")
+@Table(name = "indexLanguage")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexLanguage {
     

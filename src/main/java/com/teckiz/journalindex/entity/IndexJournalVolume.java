@@ -13,7 +13,7 @@ import java.util.List;
  * IndexJournalVolume entity representing journal volumes
  */
 @Entity
-@Table(name = "index_journal_volumes", indexes = {
+@Table(name = "indexJournalVolume", indexes = {
     @Index(name = "idx_volume_key", columnList = "volume_key"),
     @Index(name = "idx_volume_publish_date", columnList = "published_at")
 })

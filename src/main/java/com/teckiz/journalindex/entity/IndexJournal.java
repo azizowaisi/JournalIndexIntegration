@@ -13,7 +13,7 @@ import java.util.List;
  * IndexJournal entity representing journals in the indexing system
  */
 @Entity
-@Table(name = "index_journals", indexes = {
+@Table(name = "indexJournal", indexes = {
     @Index(name = "idx_journal_search", columnList = "name, keywords, e_issn, country"),
     @Index(name = "idx_journal_key", columnList = "journal_key")
 })
