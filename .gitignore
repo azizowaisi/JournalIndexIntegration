@@ -171,3 +171,8 @@ application-local.yml
 application-local.yaml
 application-secret.yml
 application-secret.yaml
+
+# SonarLint specific
+.sonarlint/
+target/site/jacoco/
+target/surefire-reports/
