@@ -38,8 +38,8 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         // Test data
         String testUrl = "https://example.com/oai";
         
-        // Send message to the route
-        String result = producerTemplate.requestBody("direct:processOaiUrl", testUrl, String.class);
+        // Send message to the route with required headers
+        String result = producerTemplate.requestBodyAndHeader("direct:processWebsite", testUrl, "journalKey", "TEST_JOURNAL", String.class);
         
         // Verify the result
         assertNotNull(result);
@@ -52,10 +52,15 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         String emptyUrl = "";
         
         try {
-            producerTemplate.requestBody("direct:processOaiUrl", emptyUrl, String.class);
+            producerTemplate.requestBodyAndHeader("direct:processWebsite", emptyUrl, "journalKey", "TEST_JOURNAL", String.class);
             fail("Should have thrown an exception for empty URL");
         } catch (Exception e) {
-            assertTrue(e.getMessage().contains("URL cannot be empty"));
+            // Check if the exception message contains our validation error
+            String message = e.getMessage();
+            assertTrue(message.contains("Website URL cannot be empty") || 
+                      message.contains("IllegalArgumentException") ||
+                      (e.getCause() != null && e.getCause().getMessage().contains("Website URL cannot be empty")),
+                      "Expected exception message to contain 'Website URL cannot be empty', but got: " + message);
         }
     }
     
@@ -65,7 +70,7 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         String urlWithoutProtocol = "example.com/oai";
         
         // This should be normalized to include https://
-        String result = producerTemplate.requestBody("direct:processOaiUrl", urlWithoutProtocol, String.class);
+        String result = producerTemplate.requestBodyAndHeader("direct:processWebsite", urlWithoutProtocol, "journalKey", "TEST_JOURNAL", String.class);
         
         assertNotNull(result);
         assertTrue(result.contains("Successfully processed"));

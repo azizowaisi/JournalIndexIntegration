@@ -173,7 +173,6 @@ application-secret.yml
 application-secret.yaml
 
 # SonarLint specific
-.sonarlint/
 target/site/jacoco/
 target/surefire-reports/
 
