@@ -107,7 +107,12 @@ public class OaiDataParser {
             // Extract metadata
             Element metadataElement = (Element) recordElement.getElementsByTagName("metadata").item(0);
             if (metadataElement != null) {
-                Element dcElement = (Element) metadataElement.getElementsByTagName("dc").item(0);
+                // Try to find oai_dc:dc element first, then fall back to dc
+                Element dcElement = (Element) metadataElement.getElementsByTagName("oai_dc:dc").item(0);
+                if (dcElement == null) {
+                    dcElement = (Element) metadataElement.getElementsByTagName("dc").item(0);
+                }
+                
                 if (dcElement != null) {
                     record.put("title", getTextContent(dcElement, "title"));
                     record.put("creator", getTextContent(dcElement, "creator"));
@@ -119,7 +124,7 @@ public class OaiDataParser {
                     record.put("format", getTextContent(dcElement, "format"));
                     record.put("language", getTextContent(dcElement, "language"));
                     record.put("rights", getTextContent(dcElement, "rights"));
-                    record.put("identifier", getTextContent(dcElement, "identifier"));
+                    record.put("metadataIdentifier", getTextContent(dcElement, "identifier"));
                 }
             }
             
@@ -145,10 +150,18 @@ public class OaiDataParser {
      * Get text content from XML element
      */
     private String getTextContent(Element parent, String tagName) {
-        NodeList nodes = parent.getElementsByTagName(tagName);
+        // Try namespaced version first (dc:title, dc:creator, etc.)
+        NodeList nodes = parent.getElementsByTagName("dc:" + tagName);
         if (nodes.getLength() > 0) {
             return nodes.item(0).getTextContent().trim();
         }
+        
+        // Try non-namespaced version
+        nodes = parent.getElementsByTagName(tagName);
+        if (nodes.getLength() > 0) {
+            return nodes.item(0).getTextContent().trim();
+        }
+        
         return null;
     }
     
