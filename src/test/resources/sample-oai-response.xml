@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/" 
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ 
+          http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2024-01-15T10:30:00Z</responseDate>
+  <request verb="ListRecords" metadataPrefix="oai_dc">https://example.com/oai</request>
+  <ListRecords>
+    <record>
+      <header>
+        <identifier>oai:example.com:12345</identifier>
+        <datestamp>2024-01-15T10:00:00Z</datestamp>
+        <setSpec>journal</setSpec>
+      </header>
+      <metadata>
+        <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" 
+                   xmlns:dc="http://purl.org/dc/elements/1.1/"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ 
+                   http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+          <dc:title>Journal of Example Research</dc:title>
+          <dc:creator>John Doe</dc:creator>
+          <dc:subject>Computer Science</dc:subject>
+          <dc:subject>Machine Learning</dc:subject>
+          <dc:description>This is a sample journal article about machine learning applications.</dc:description>
+          <dc:publisher>Example Publishing House</dc:publisher>
+          <dc:date>2024-01-15</dc:date>
+          <dc:type>Journal Article</dc:type>
+          <dc:format>application/pdf</dc:format>
+          <dc:language>en</dc:language>
+          <dc:rights>Copyright 2024 Example Publishing House</dc:rights>
+          <dc:identifier>https://example.com/article/12345</dc:identifier>
+        </oai_dc:dc>
+      </metadata>
+    </record>
+    <record>
+      <header>
+        <identifier>oai:example.com:12346</identifier>
+        <datestamp>2024-01-15T09:00:00Z</datestamp>
+        <setSpec>journal</setSpec>
+      </header>
+      <metadata>
+        <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" 
+                   xmlns:dc="http://purl.org/dc/elements/1.1/"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ 
+                   http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+          <dc:title>Advanced Data Structures</dc:title>
+          <dc:creator>Jane Smith</dc:creator>
+          <dc:subject>Computer Science</dc:subject>
+          <dc:subject>Data Structures</dc:subject>
+          <dc:description>An in-depth look at advanced data structures and their applications.</dc:description>
+          <dc:publisher>Example Publishing House</dc:publisher>
+          <dc:date>2024-01-14</dc:date>
+          <dc:type>Journal Article</dc:type>
+          <dc:format>application/pdf</dc:format>
+          <dc:language>en</dc:language>
+          <dc:rights>Copyright 2024 Example Publishing House</dc:rights>
+          <dc:identifier>https://example.com/article/12346</dc:identifier>
+        </oai_dc:dc>
+      </metadata>
+    </record>
+  </ListRecords>
+</OAI-PMH>
