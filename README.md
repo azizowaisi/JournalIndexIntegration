@@ -180,7 +180,7 @@ nano .env
 - **Never commit `.env` files** - they contain sensitive information
 - **Use `env.example`** as a template
 - **Set strong passwords** for all environments
-- **See [SECURITY.md](SECURITY.md)** for detailed security guidelines
+- **Use environment variables** for all sensitive configuration
 
 #### Environment-Specific Configuration
 - **Development**: `env.development` - Local development with verbose logging
@@ -611,7 +611,6 @@ Check the following log levels for debugging:
 │       └── resources/             # Test resources
 ├── pom.xml                       # Maven configuration
 ├── README.md                     # Project documentation
-├── DEPLOYMENT_GUIDE.md           # Deployment instructions
 ├── deploy.sh                     # Deployment script
 ├── docker-compose.yml            # Docker configuration
 └── Dockerfile                    # Docker image definition
