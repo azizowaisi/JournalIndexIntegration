@@ -176,3 +176,6 @@ application-secret.yaml
 .sonarlint/
 target/site/jacoco/
 target/surefire-reports/
+
+# GitHub Actions
+.github/workflows/*.yml.bak
