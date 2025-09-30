@@ -21,7 +21,7 @@
         <mysql.version>8.0.33</mysql.version>
         <jackson.version>2.15.2</jackson.version>
         <sonar.organization>azizowaisi</sonar.organization>
-        <sonar.projectKey>azizowaisi_JournalIndexIntegration</sonar.projectKey>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
 
     <dependencies>
