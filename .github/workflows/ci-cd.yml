@@ -53,5 +53,6 @@ jobs:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           SQS_QUEUE_NAME: ${{ secrets.SQS_QUEUE_NAME }}
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
         run: |
           sls deploy --stage dev --region $AWS_REGION
