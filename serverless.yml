@@ -10,7 +10,7 @@ provider:
   timeout: 300
   memorySize: 512
   deploymentBucket:
-    name: ${env:DEPLOYMENT_BUCKET_NAME, ''}
+    name: ${env:DEPLOYMENT_BUCKET_NAME}
     serverSideEncryption: AES256
   environment:
     DB_URL: ${env:DB_URL}
@@ -98,26 +98,6 @@ functions:
       Function: importer
       Environment: ${self:provider.stage}
 
-  # Health check endpoint (optional)
-  healthCheck:
-    handler: com.teckiz.journalindex.LambdaHandler
-    name: ${self:service}-${self:provider.stage}-health
-    description: "Health check endpoint for monitoring"
-    timeout: 29
-    memorySize: 128
-    events:
-      - http:
-          path: health
-          method: get
-          cors: true
-          timeout: 29
-    environment:
-      FUNCTION_TYPE: health
-    tags:
-      Service: ${self:service}
-      Function: health
-      Environment: ${self:provider.stage}
-
 # Custom resources
 resources:
   Resources:
@@ -162,12 +142,6 @@ resources:
       Properties:
         LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-importer
         RetentionInDays: 14
-
-    HealthCheckLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-health
-        RetentionInDays: 7
 
     # CloudWatch Alarms
     CreatorCommandErrorAlarm:
@@ -246,6 +220,5 @@ custom:
     default: false
     creatorCommand: false
     importCommand: false
-    healthCheck: false
 
 # Stack tags (moved to provider level)
