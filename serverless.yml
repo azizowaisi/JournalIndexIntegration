@@ -224,8 +224,8 @@ resources:
 
 # Plugins
 plugins:
-  - serverless-offline # For local development
-  - serverless-plugin-warmup # For Lambda warmup (optional)
+  #- serverless-offline # For local development
+  #- serverless-plugin-warmup # For Lambda warmup (optional)
 
 custom:
   # Serverless offline configuration
