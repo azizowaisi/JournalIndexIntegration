@@ -9,6 +9,9 @@ provider:
   stage: ${opt:stage, 'dev'}
   timeout: 300
   memorySize: 512
+  deploymentBucket:
+    name: ${env:DEPLOYMENT_BUCKET_NAME, ''}
+    serverSideEncryption: AES256
   environment:
     DB_URL: ${env:DB_URL}
     DB_USERNAME: ${env:DB_USERNAME}
@@ -42,6 +45,10 @@ provider:
             - events:PutTargets
             - events:DescribeRule
           Resource: '*'
+  tags:
+    Service: ${self:service}
+    Environment: ${self:provider.stage}
+    ManagedBy: serverless
 
 package:
   artifact: target/journal-index-integration-1.0.0.jar
@@ -58,7 +65,6 @@ functions:
       - sqs:
           arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:${env:SQS_QUEUE_NAME}
           batchSize: 1
-          maximumBatchingWindowInSeconds: 5
           functionResponseType: ReportBatchItemFailures
     environment:
       FUNCTION_TYPE: creator
@@ -97,13 +103,14 @@ functions:
     handler: com.teckiz.journalindex.LambdaHandler
     name: ${self:service}-${self:provider.stage}-health
     description: "Health check endpoint for monitoring"
-    timeout: 30
+    timeout: 29
     memorySize: 128
     events:
       - http:
           path: health
           method: get
           cors: true
+          timeout: 29
     environment:
       FUNCTION_TYPE: health
     tags:
@@ -241,13 +248,4 @@ custom:
     importCommand: false
     healthCheck: false
 
-# Deployment configuration
-deploymentBucket:
-  name: ${self:service}-${self:provider.stage}-deployments
-  serverSideEncryption: AES256
-
-# Stack tags
-stackTags:
-  Service: ${self:service}
-  Environment: ${self:provider.stage}
-  ManagedBy: serverless
+# Stack tags (moved to provider level)
