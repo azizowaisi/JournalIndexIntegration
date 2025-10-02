@@ -101,30 +101,16 @@ resources:
     JournalIndexQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: ${env:SQS_QUEUE_NAME}
+        QueueName: journal-index-queue-prod
         VisibilityTimeoutSeconds: 300
         MessageRetentionPeriod: 1209600 # 14 days
         ReceiveMessageWaitTimeSeconds: 20 # Long polling
-        RedrivePolicy:
-          deadLetterTargetArn: !GetAtt JournalIndexDeadLetterQueue.Arn
-          maxReceiveCount: 3
         Tags:
           - Key: Service
             Value: ${self:service}
           - Key: Environment
             Value: ${self:provider.stage}
 
-    # Dead Letter Queue for failed messages
-    JournalIndexDeadLetterQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: ${env:SQS_QUEUE_NAME}-dlq
-        MessageRetentionPeriod: 1209600 # 14 days
-        Tags:
-          - Key: Service
-            Value: ${self:service}
-          - Key: Environment
-            Value: ${self:provider.stage}
 
     # CloudWatch Log Groups
     CreatorCommandLogGroup:
