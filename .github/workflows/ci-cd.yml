@@ -36,7 +36,14 @@ jobs:
       - name: Install Serverless Framework v4
         run: npm install -g serverless@4
 
-      # 6. Deploy using Serverless
+      # 6. Authenticate with Serverless Framework
+      - name: Login to Serverless Framework
+        env:
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+        run: |
+          echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
+
+      # 7. Deploy using Serverless
       - name: Deploy to AWS
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
