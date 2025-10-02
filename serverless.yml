@@ -15,6 +15,7 @@ provider:
     DB_PASSWORD: ${env:DB_PASSWORD}
     AWS_REGION: ${self:provider.region}
     SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
+    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
   iam:
     role:
       statements:
@@ -42,132 +43,56 @@ provider:
             - events:PutTargets
             - events:DescribeRule
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - arn:aws:s3:::${env:S3_BUCKET_NAME}/*
 
 package:
   artifact: target/journal-index-integration-1.0.0.jar
 
 functions:
-  # CreatorCommand Lambda - Handles SQS messages and creates IndexImportQueue entries
-  creatorCommand:
+  # Journal Processor Lambda - Single unified process
+  journalProcessor:
     handler: com.teckiz.journalindex.LambdaHandler
-    name: ${self:service}-${self:provider.stage}-creator
-    description: "CreatorCommand: Fetches data from OAI endpoints and saves to IndexImportQueue"
-    timeout: 300
-    memorySize: 512
+    name: ${self:service}-${self:provider.stage}-processor
+    description: "Journal Processor: Receives SQS messages, fetches OAI data, saves to S3 and database"
+    timeout: 900
+    memorySize: 1024
     events:
       - sqs:
           arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:${env:SQS_QUEUE_NAME}
           batchSize: 1
-          maximumBatchingWindowInSeconds: 5
           functionResponseType: ReportBatchItemFailures
     environment:
-      FUNCTION_TYPE: creator
-    tags:
-      Service: ${self:service}
-      Function: creator
-      Environment: ${self:provider.stage}
-
-  # ImportCommand Lambda - Processes IndexImportQueue entries
-  importCommand:
-    handler: com.teckiz.journalindex.ImportCommandLambdaHandler
-    name: ${self:service}-${self:provider.stage}-importer
-    description: "ImportCommand: Processes IndexImportQueue entries and maps data to database entities"
-    timeout: 180
-    memorySize: 256
-    events:
-      - schedule:
-          rate: rate(5 minutes)
-          enabled: true
-          description: "Process IndexImportQueue entries every 5 minutes"
-      - schedule:
-          rate: cron(0 2 * * ? *)
-          enabled: false
-          description: "Daily cleanup at 2 AM UTC (disabled by default)"
-    environment:
-      FUNCTION_TYPE: importer
+      FUNCTION_TYPE: processor
       BATCH_SIZE: 10
       MAX_RETRIES: 3
     tags:
       Service: ${self:service}
-      Function: importer
-      Environment: ${self:provider.stage}
-
-  # Health check endpoint (optional)
-  healthCheck:
-    handler: com.teckiz.journalindex.LambdaHandler
-    name: ${self:service}-${self:provider.stage}-health
-    description: "Health check endpoint for monitoring"
-    timeout: 30
-    memorySize: 128
-    events:
-      - http:
-          path: health
-          method: get
-          cors: true
-    environment:
-      FUNCTION_TYPE: health
-    tags:
-      Service: ${self:service}
-      Function: health
+      Function: processor
       Environment: ${self:provider.stage}
 
 # Custom resources
 resources:
   Resources:
-    # SQS Queue for journal processing
-    JournalIndexQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: ${env:SQS_QUEUE_NAME}
-        VisibilityTimeoutSeconds: 300
-        MessageRetentionPeriod: 1209600 # 14 days
-        ReceiveMessageWaitTimeSeconds: 20 # Long polling
-        RedrivePolicy:
-          deadLetterTargetArn: !GetAtt JournalIndexDeadLetterQueue.Arn
-          maxReceiveCount: 3
-        Tags:
-          - Key: Service
-            Value: ${self:service}
-          - Key: Environment
-            Value: ${self:provider.stage}
-
-    # Dead Letter Queue for failed messages
-    JournalIndexDeadLetterQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: ${env:SQS_QUEUE_NAME}-dlq
-        MessageRetentionPeriod: 1209600 # 14 days
-        Tags:
-          - Key: Service
-            Value: ${self:service}
-          - Key: Environment
-            Value: ${self:provider.stage}
-
     # CloudWatch Log Groups
-    CreatorCommandLogGroup:
+    JournalProcessorLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-creator
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
         RetentionInDays: 14
 
-    ImportCommandLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-importer
-        RetentionInDays: 14
-
-    HealthCheckLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-health
-        RetentionInDays: 7
 
     # CloudWatch Alarms
-    CreatorCommandErrorAlarm:
+    JournalProcessorErrorAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:
-        AlarmName: ${self:service}-${self:provider.stage}-creator-errors
-        AlarmDescription: "CreatorCommand Lambda errors"
+        AlarmName: ${self:service}-${self:provider.stage}-processor-errors
+        AlarmDescription: "Journal Processor Lambda errors"
         MetricName: Errors
         Namespace: AWS/Lambda
         Statistic: Sum
@@ -177,69 +102,15 @@ resources:
         ComparisonOperator: GreaterThanThreshold
         Dimensions:
           - Name: FunctionName
-            Value: ${self:service}-${self:provider.stage}-creator
-        TreatMissingData: notBreaching
-
-    ImportCommandErrorAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${self:provider.stage}-importer-errors
-        AlarmDescription: "ImportCommand Lambda errors"
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 5
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: FunctionName
-            Value: ${self:service}-${self:provider.stage}-importer
+            Value: ${self:service}-${self:provider.stage}-processor
         TreatMissingData: notBreaching
 
   Outputs:
-    CreatorCommandArn:
-      Description: "CreatorCommand Lambda Function ARN"
-      Value: !GetAtt CreatorCommandLambdaFunction.Arn
+    JournalProcessorArn:
+      Description: "Journal Processor Lambda Function ARN"
+      Value: !GetAtt JournalProcessorLambdaFunction.Arn
       Export:
-        Name: ${self:service}-${self:provider.stage}-creator-arn
-
-    ImportCommandArn:
-      Description: "ImportCommand Lambda Function ARN"
-      Value: !GetAtt ImportCommandLambdaFunction.Arn
-      Export:
-        Name: ${self:service}-${self:provider.stage}-importer-arn
-
-    SQSQueueUrl:
-      Description: "SQS Queue URL"
-      Value: !Ref JournalIndexQueue
-      Export:
-        Name: ${self:service}-${self:provider.stage}-queue-url
-
-    SQSQueueArn:
-      Description: "SQS Queue ARN"
-      Value: !GetAtt JournalIndexQueue.Arn
-      Export:
-        Name: ${self:service}-${self:provider.stage}-queue-arn
-
-# Plugins
-plugins:
-  - serverless-offline # For local development
-  - serverless-plugin-warmup # For Lambda warmup (optional)
-
-custom:
-  # Serverless offline configuration
-  serverless-offline:
-    httpPort: 3000
-    lambdaPort: 3002
-    host: 0.0.0.0
-
-  # Warmup configuration (optional)
-  warmup:
-    default: false
-    creatorCommand: false
-    importCommand: false
-    healthCheck: false
+        Name: ${self:service}-${self:provider.stage}-processor-arn
 
 # Deployment configuration
 deploymentBucket:
