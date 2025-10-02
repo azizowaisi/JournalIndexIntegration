@@ -5,7 +5,7 @@ frameworkVersion: '4'
 provider:
   name: aws
   runtime: java21
-  region: ${opt:region, 'us-east-1'}
+  region: ${opt:region, 'ap-south-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300
   memorySize: 512
@@ -13,7 +13,6 @@ provider:
     DB_URL: ${env:DB_URL}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
-    AWS_REGION: ${self:provider.region}
     SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
   iam:
     role:
