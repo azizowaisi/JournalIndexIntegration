@@ -23,7 +23,7 @@ provider:
             - sqs:DeleteMessage
             - sqs:GetQueueAttributes
           Resource:
-            - arn:aws:sqs:${self:provider.region}:*:${env:SQS_QUEUE_NAME}
+            - ${env:SQS_QUEUE_ARN}
         - Effect: Allow
           Action:
             - rds:DescribeDBInstances
@@ -59,7 +59,7 @@ functions:
     memorySize: 512
     events:
       - sqs:
-          arn: arn:aws:sqs:${self:provider.region}:${aws:accountId}:${env:SQS_QUEUE_NAME}
+          arn: ${env:SQS_QUEUE_ARN}
           batchSize: 1
           functionResponseType: ReportBatchItemFailures
     environment:
