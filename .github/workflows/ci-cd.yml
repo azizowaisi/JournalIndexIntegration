@@ -57,4 +57,4 @@ jobs:
           DEPLOYMENT_BUCKET_NAME: ${{ secrets.DEPLOYMENT_BUCKET_NAME }}
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
         run: |
-          sls deploy --stage dev --region $AWS_REGION
+          sls deploy --stage prod --region $AWS_REGION
