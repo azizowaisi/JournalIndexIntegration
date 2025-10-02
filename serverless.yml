@@ -4,7 +4,7 @@ frameworkVersion: '4'
 
 provider:
   name: aws
-  runtime: java11
+  runtime: java21
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300
