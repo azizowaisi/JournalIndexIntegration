@@ -11,7 +11,7 @@ jobs:
     steps:
       # 1. Checkout repo
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # 2. Set up JDK 21 (Latest LTS for AWS Lambda)
       - name: Set up JDK 21
