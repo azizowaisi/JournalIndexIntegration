@@ -1,0 +1,8 @@
+# AWS Configuration for SQS Integration
+AWS_REGION=ap-south-1
+SQS_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/518624980012/journal-index-integration-queue
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+
+# Database Configuration (same as your existing setup)
+DATABASE_URL=mysql://username:password@localhost:3306/database_name
