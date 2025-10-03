@@ -13,7 +13,7 @@ provider:
     DB_URL: ${env:DB_URL}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
-    SQS_QUEUE_URL: !Ref JournalIndexQueue
+    SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
   iam:
     role:
@@ -24,7 +24,7 @@ provider:
             - sqs:DeleteMessage
             - sqs:GetQueueAttributes
           Resource:
-            - !GetAtt JournalIndexQueue.Arn
+            - ${env:SQS_QUEUE_ARN}
         - Effect: Allow
           Action:
             - rds:DescribeDBInstances
@@ -67,7 +67,7 @@ functions:
     memorySize: 1024
     events:
       - sqs:
-          arn: !GetAtt JournalIndexQueue.Arn
+          arn: ${env:SQS_QUEUE_ARN}
           batchSize: 1
           functionResponseType: ReportBatchItemFailures
     environment:
@@ -82,19 +82,6 @@ functions:
 # Custom resources
 resources:
   Resources:
-    # SQS Queue for journal processing
-    JournalIndexQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: journal-index-queue-prod
-        VisibilityTimeoutSeconds: 5400 # 90 minutes (6x Lambda timeout)
-        MessageRetentionPeriod: 1209600 # 14 days
-        ReceiveMessageWaitTimeSeconds: 20 # Long polling
-        Tags:
-          - Key: Service
-            Value: ${self:service}
-          - Key: Environment
-            Value: ${self:provider.stage}
     # CloudWatch Log Groups
     JournalProcessorLogGroup:
       Type: AWS::Logs::LogGroup
@@ -126,18 +113,6 @@ resources:
       Value: !GetAtt JournalProcessorLambdaFunction.Arn
       Export:
         Name: ${self:service}-${self:provider.stage}-processor-arn
-
-    SQSQueueUrl:
-      Description: "SQS Queue URL"
-      Value: !Ref JournalIndexQueue
-      Export:
-        Name: ${self:service}-${self:provider.stage}-queue-url
-
-    SQSQueueArn:
-      Description: "SQS Queue ARN"
-      Value: !GetAtt JournalIndexQueue.Arn
-      Export:
-        Name: ${self:service}-${self:provider.stage}-queue-arn
 
 # Plugins
 plugins:
