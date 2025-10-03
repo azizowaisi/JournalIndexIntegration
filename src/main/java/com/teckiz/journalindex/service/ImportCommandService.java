@@ -111,12 +111,15 @@ public class ImportCommandService {
      */
     private boolean isProcessingComplete(IndexImportQueue importQueue) {
         try {
-            Integer totalRecords = importQueue.getTotalRecords();
-            Integer indexedRecords = importQueue.getIndexedRecords();
+            String totalRecordsStr = importQueue.getTotalRecords();
+            String indexedRecordsStr = importQueue.getIndexedRecords();
             
-            if (totalRecords == null || indexedRecords == null) {
+            if (totalRecordsStr == null || indexedRecordsStr == null) {
                 return true; // Assume complete if no record counts
             }
+            
+            Integer totalRecords = Integer.parseInt(totalRecordsStr);
+            Integer indexedRecords = Integer.parseInt(indexedRecordsStr);
             
             int total = totalRecords;
             int indexed = indexedRecords;

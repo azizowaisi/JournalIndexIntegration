@@ -170,7 +170,7 @@ public class ImportQueueService {
             IndexImportQueue importQueue = importQueueRepository.findById(queueId)
                     .orElseThrow(() -> new RuntimeException("Import queue not found with ID: " + queueId));
             
-            importQueue.setIndexedRecords(indexedRecords);
+            importQueue.setIndexedRecords(String.valueOf(indexedRecords));
             importQueueRepository.save(importQueue);
             
         } catch (Exception e) {

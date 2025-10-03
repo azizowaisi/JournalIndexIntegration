@@ -15,12 +15,12 @@ public interface IndexImportQueueRepository extends JpaRepository<IndexImportQue
     /**
      * Find all queue entries for a specific journal
      */
-    List<IndexImportQueue> findByIndexJournalIdOrderByCreatedAtDesc(Long indexJournalId);
+    List<IndexImportQueue> findByJournalKeyOrderByCreatedAtDesc(String journalKey);
     
     /**
      * Find all pending queue entries
      */
-    List<IndexImportQueue> findByStatusOrderByCreatedAtAsc(String status);
+    List<IndexImportQueue> findByIndexedFalseOrderByCreatedAtAsc();
     
     /**
      * Find all queue entries by system type
@@ -30,7 +30,7 @@ public interface IndexImportQueueRepository extends JpaRepository<IndexImportQue
     /**
      * Find all queue entries for a specific journal and system type
      */
-    List<IndexImportQueue> findByIndexJournalIdAndSystemTypeOrderByCreatedAtDesc(Long indexJournalId, String systemType);
+    List<IndexImportQueue> findByJournalKeyAndSystemTypeOrderByCreatedAtDesc(String journalKey, String systemType);
     
     /**
      * Find all queue entries that are not indexed and have no errors
