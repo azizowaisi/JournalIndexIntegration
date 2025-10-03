@@ -35,7 +35,11 @@ provider:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: '*'
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+          Resource: 
+            - !Sub '/aws/lambda/${JournalProcessorLambdaFunction}'
+            - !Sub '/aws/lambda/${JournalProcessorLambdaFunction}:*'
         - Effect: Allow
           Action:
             - events:PutRule
@@ -74,6 +78,7 @@ functions:
       FUNCTION_TYPE: processor
       BATCH_SIZE: 10
       MAX_RETRIES: 3
+      LOG_LEVEL: INFO
     tags:
       Service: ${self:service}
       Function: processor
@@ -86,7 +91,7 @@ resources:
     JournalProcessorLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
+        LogGroupName: !Sub '/aws/lambda/${JournalProcessorLambdaFunction}'
         RetentionInDays: 14
 
     # CloudWatch Alarms
