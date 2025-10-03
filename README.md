@@ -527,8 +527,8 @@ The application logs to CloudWatch with the following log groups:
 ### Database Monitoring
 
 Monitor the following tables for processing status:
-- `index_import_queues` - Import queue status and processing
-- `index_journals` - Journal metadata and status
+- `IndexImportQueue` - Import queue status and processing
+- `IndexJournal` - Journal metadata and status
 - `harvest_logs` - Processing status and timing (legacy)
 - `journal_records` - Individual record processing (legacy)
 

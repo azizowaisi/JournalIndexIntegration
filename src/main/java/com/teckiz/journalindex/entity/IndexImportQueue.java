@@ -1,70 +1,35 @@
 package com.teckiz.journalindex.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * IndexImportQueue entity representing import queue items
+ * IndexImportQueue entity - matches Symfony AppBundle\Entity\IndexImportQueue
  */
 @Entity
-@Table(name = "indexImportQueue")
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Table(name = "IndexImportQueue")
 public class IndexImportQueue {
     
-    private static final Logger logger = LogManager.getLogger(IndexImportQueue.class);
-    
-    // System type constants
-    public static final String OJS_OAI_IDENTIFY = "ojs-identify";
-    public static final String OJS_OAI_RECORD_LIST = "ojs-record-list";
-    public static final String DOAJ_TYPE_XML = "doaj";
-    public static final String OJS_XML = "ojs";
-    public static final String TECKIZ = "teckiz";
-    
-    // Format constants
-    public static final String XML_FORMAT = "xml";
-    public static final String JSON_FORMAT = "json";
+    public static final String OJS_OAI_IDENTIFY = "OJS_OAI_IDENTIFY";
+    public static final String OJS_OAI_RECORD_LIST = "OJS_OAI_RECORD_LIST";
+    public static final String DOAJ = "DOAJ";
+    public static final String TECKIZ = "TECKIZ";
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
     
-    @Column(name = "queue_key", length = 20, unique = true)
-    private String queueKey;
+    @Column(name = "index_journal_id")
+    private Long indexJournalId;
     
-    @Column(name = "data", columnDefinition = "TEXT")
-    private String data;
-    
-    @Column(name = "format", length = 50)
-    private String format = XML_FORMAT;
-    
-    @Column(name = "total_records", length = 10)
-    private String totalRecords;
-    
-    @Column(name = "indexed_records", length = 10)
-    private String indexedRecords = "0";
-    
-    @Column(name = "is_indexed")
-    private Boolean indexed = false;
-    
-    @Column(name = "is_error")
-    private Boolean error = false;
-    
-    @Column(name = "message", length = 255)
-    private String message;
-    
-    @Column(name = "system_type", length = 50)
+    @Column(name = "system_type")
     private String systemType;
     
-    @Column(name = "company_key", length = 50)
-    private String companyKey;
+    @Column(name = "data", columnDefinition = "LONGTEXT")
+    private String data;
     
-    @Column(name = "journal_key", length = 50)
-    private String journalKey;
+    @Column(name = "status")
+    private String status = "pending";
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -72,11 +37,41 @@ public class IndexImportQueue {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+    
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+    
+    @Column(name = "retry_count")
+    private Integer retryCount = 0;
+    
+    @Column(name = "indexed")
+    private Boolean indexed = false;
+    
+    @Column(name = "error")
+    private Boolean error = false;
+    
+    @Column(name = "message", columnDefinition = "TEXT")
+    private String message;
+    
+    @Column(name = "total_records")
+    private Integer totalRecords = 0;
+    
+    @Column(name = "indexed_records")
+    private Integer indexedRecords = 0;
+    
     // Constructors
     public IndexImportQueue() {
-        this.queueKey = generateEntityKey();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+    }
+    
+    public IndexImportQueue(Long indexJournalId, String systemType, String data) {
+        this();
+        this.indexJournalId = indexJournalId;
+        this.systemType = systemType;
+        this.data = data;
     }
     
     // Getters and Setters
@@ -88,12 +83,20 @@ public class IndexImportQueue {
         this.id = id;
     }
     
-    public String getQueueKey() {
-        return queueKey;
+    public Long getIndexJournalId() {
+        return indexJournalId;
     }
     
-    public void setQueueKey(String queueKey) {
-        this.queueKey = queueKey;
+    public void setIndexJournalId(Long indexJournalId) {
+        this.indexJournalId = indexJournalId;
+    }
+    
+    public String getSystemType() {
+        return systemType;
+    }
+    
+    public void setSystemType(String systemType) {
+        this.systemType = systemType;
     }
     
     public String getData() {
@@ -104,28 +107,52 @@ public class IndexImportQueue {
         this.data = data;
     }
     
-    public String getFormat() {
-        return format;
+    public String getStatus() {
+        return status;
     }
     
-    public void setFormat(String format) {
-        this.format = format;
+    public void setStatus(String status) {
+        this.status = status;
     }
     
-    public String getTotalRecords() {
-        return totalRecords;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
     
-    public void setTotalRecords(String totalRecords) {
-        this.totalRecords = totalRecords;
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
     
-    public String getIndexedRecords() {
-        return indexedRecords;
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
     
-    public void setIndexedRecords(String indexedRecords) {
-        this.indexedRecords = indexedRecords;
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+    
+    public LocalDateTime getProcessedAt() {
+        return processedAt;
+    }
+    
+    public void setProcessedAt(LocalDateTime processedAt) {
+        this.processedAt = processedAt;
+    }
+    
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+    
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
+    
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+    
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
     }
     
     public Boolean getIndexed() {
@@ -152,64 +179,19 @@ public class IndexImportQueue {
         this.message = message;
     }
     
-    public String getSystemType() {
-        return systemType;
+    public Integer getTotalRecords() {
+        return totalRecords;
     }
     
-    public void setSystemType(String systemType) {
-        this.systemType = systemType;
+    public void setTotalRecords(Integer totalRecords) {
+        this.totalRecords = totalRecords;
     }
     
-    public String getCompanyKey() {
-        return companyKey;
+    public Integer getIndexedRecords() {
+        return indexedRecords;
     }
     
-    public void setCompanyKey(String companyKey) {
-        this.companyKey = companyKey;
-    }
-    
-    public String getJournalKey() {
-        return journalKey;
-    }
-    
-    public void setJournalKey(String journalKey) {
-        this.journalKey = journalKey;
-    }
-    
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-    
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-    
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-    
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-    
-    // Utility methods
-    private String generateEntityKey() {
-        return "QUEUE_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
-    }
-    
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-    
-    @Override
-    public String toString() {
-        return "IndexImportQueue{" +
-                "id=" + id +
-                ", queueKey='" + queueKey + '\'' +
-                ", systemType='" + systemType + '\'' +
-                ", format='" + format + '\'' +
-                ", indexed=" + indexed +
-                '}';
+    public void setIndexedRecords(Integer indexedRecords) {
+        this.indexedRecords = indexedRecords;
     }
 }

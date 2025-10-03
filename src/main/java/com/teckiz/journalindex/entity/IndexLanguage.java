@@ -4,14 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
  * IndexLanguage entity representing languages in the indexing system
  */
 @Entity
-@Table(name = "indexLanguage")
+@Table(name = "IndexLanguage")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexLanguage {
     

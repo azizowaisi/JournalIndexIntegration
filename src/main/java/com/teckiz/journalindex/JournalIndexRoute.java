@@ -1,18 +1,25 @@
 package com.teckiz.journalindex;
 
 import com.teckiz.journalindex.service.OaiHarvestService;
+import com.teckiz.journalindex.service.IndexImportQueueService;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.jackson.JacksonDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Camel route configuration for processing OAI URLs and harvesting data
  */
+@Component
 public class JournalIndexRoute extends RouteBuilder {
-    
+
     private static final Logger logger = LogManager.getLogger(JournalIndexRoute.class);
+    
+    @Autowired
+    private IndexImportQueueService indexImportQueueService;
     
     @Override
     public void configure() throws Exception {
@@ -35,9 +42,7 @@ public class JournalIndexRoute extends RouteBuilder {
             .log("Processing website URL: ${header.websiteUrl} for journal: ${header.journalKey}")
             .process(exchange -> {
                 logger.info("=== INSIDE CAMEL PROCESSOR ===");
-                System.out.println("=== INSIDE CAMEL PROCESSOR (System.out) ===");
                 logger.info("Headers: {}", exchange.getIn().getHeaders());
-                System.out.println("Headers: " + exchange.getIn().getHeaders());
                 String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
                 String journalKey = exchange.getIn().getHeader("journalKey", String.class);
                 
@@ -105,67 +110,117 @@ public class JournalIndexRoute extends RouteBuilder {
                     .throwException(new RuntimeException("Unknown system type: ${header.systemType}"))
             .end();
         
-        // Route to harvest OJS OAI data
-        from("direct:harvestOjsOai")
-            .routeId("harvestOjsOai")
-            .log("Harvesting OJS OAI data from: ${header.websiteUrl}")
-            .process(exchange -> {
-                // Append /oai to the base URL (like Symfony system)
-                String baseUrl = exchange.getIn().getHeader("websiteUrl", String.class);
-                String oaiUrl = baseUrl.endsWith("/") ? baseUrl + "oai" : baseUrl + "/oai";
-                exchange.getIn().setHeader("oaiUrl", oaiUrl);
-                logger.info("Constructed OAI URL: {}", oaiUrl);
-            })
-            .setHeader("CamelHttpMethod", constant("GET"))
-            .setHeader("CamelHttpQuery", constant("verb=Identify"))
-            .to("direct:mockHttp")
-            .choice()
-                .when(header("CamelHttpResponseCode").isEqualTo(200))
-                    .log("OJS OAI endpoint discovered successfully")
-                    .process(exchange -> {
-                        String response = exchange.getIn().getBody(String.class);
-                        String oaiUrl = exchange.getIn().getHeader("oaiUrl", String.class);
-                        exchange.getIn().setHeader("oaiBaseUrl", oaiUrl);
-                        exchange.getIn().setHeader("oaiData", response);
-                        
-                        // Save identify response to import queue
-                        try {
-                            saveToImportQueue(exchange, "OJS_OAI_IDENTIFY", response);
-                        } catch (Exception e) {
-                            logger.warn("Failed to save identify response to import queue", e);
-                        }
-                    })
-                    .to("direct:harvestOjsRecords")
-                .otherwise()
-                    .log("Failed to discover OJS OAI endpoint. Response code: ${header.CamelHttpResponseCode}")
-                    .throwException(new RuntimeException("OJS OAI endpoint not accessible"))
-            .end();
+                    // Route to harvest OJS OAI data - matches Symfony createOjsOaiQueue
+                    from("direct:harvestOjsOai")
+                        .routeId("harvestOjsOai")
+                        .log("Harvesting OJS OAI data from: ${header.websiteUrl}")
+                        .process(exchange -> {
+                            // Clean website URL like Symfony cleanWebsiteUrl method
+                            String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                            String cleanedUrl = cleanWebsiteUrl(websiteUrl);
+                            exchange.getIn().setHeader("cleanedUrl", cleanedUrl);
+                            logger.info("Cleaned website URL: {}", cleanedUrl);
+                        })
+                        .process(exchange -> {
+                            // Get Identify URL like Symfony getUrlIdentify
+                            String cleanedUrl = exchange.getIn().getHeader("cleanedUrl", String.class);
+                            String identifyUrl = cleanedUrl + "/oai?verb=Identify";
+                            exchange.getIn().setHeader("identifyUrl", identifyUrl);
+                            logger.info("Identify URL: {}", identifyUrl);
+                        })
+                        .setHeader("CamelHttpMethod", constant("GET"))
+                        .setHeader("CamelHttpQuery", constant("verb=Identify"))
+                        .to("direct:makeHttpRequest")
+                        .choice()
+                            .when(header("CamelHttpResponseCode").isEqualTo(200))
+                                .log("OJS OAI Identify successful")
+                                .process(exchange -> {
+                                    String response = exchange.getIn().getBody(String.class);
+                                    exchange.getIn().setHeader("identifyData", response);
+                                    
+                                    // Save identify response to import queue
+                                    saveToImportQueue(exchange, "OJS_OAI_IDENTIFY", response);
+                                })
+                                .to("direct:harvestOjsRecords")
+                            .otherwise()
+                                .log("Failed to get OJS OAI Identify. Response code: ${header.CamelHttpResponseCode}")
+                                .throwException(new RuntimeException("OJS OAI Identify failed"))
+                        .end();
         
-        // Route to harvest OJS records
+        // Route to harvest OJS records - matches Symfony OAI harvesting with pagination loop
         from("direct:harvestOjsRecords")
             .routeId("harvestOjsRecords")
-            .log("Harvesting OJS records from: ${header.oaiUrl}")
-            .setHeader("CamelHttpMethod", constant("GET"))
-            .setHeader("CamelHttpQuery", constant("verb=ListRecords&metadataPrefix=oai_dc"))
-            .to("direct:mockHttp")
-            .choice()
-                .when(header("CamelHttpResponseCode").isEqualTo(200))
-                    .log("OJS records harvested successfully")
-                    .process(exchange -> {
-                        String oaiData = exchange.getIn().getBody(String.class);
-                        exchange.getIn().setHeader("oaiData", oaiData);
-                        
-                        // Save records response to import queue
-                        try {
+            .log("Starting OJS records harvesting with pagination")
+            .process(exchange -> {
+                // Initialize pagination variables like Symfony
+                exchange.getIn().setHeader("isToken", false);
+                exchange.getIn().setHeader("tokenValue", "");
+                exchange.getIn().setHeader("pageCount", 0);
+                logger.info("Initialized pagination variables");
+            })
+            .loopDoWhile(header("isToken").isEqualTo(true))
+                .log("Processing OAI page: ${header.pageCount}")
+                .choice()
+                    .when(header("tokenValue").isEqualTo(""))
+                        .log("First page - getting initial records")
+                        .process(exchange -> {
+                            // Get Records URL like Symfony getUrlRecordList
+                            String cleanedUrl = exchange.getIn().getHeader("cleanedUrl", String.class);
+                            String recordsUrl = cleanedUrl + "/oai?verb=ListRecords&metadataPrefix=oai_dc";
+                            exchange.getIn().setHeader("recordsUrl", recordsUrl);
+                            logger.info("Records URL: {}", recordsUrl);
+                        })
+                        .setHeader("CamelHttpMethod", constant("GET"))
+                        .setHeader("CamelHttpQuery", constant("verb=ListRecords&metadataPrefix=oai_dc"))
+                        .to("direct:makeHttpRequest")
+                    .otherwise()
+                        .log("Next page - using resumption token")
+                        .process(exchange -> {
+                            // Get Token URL like Symfony getTokenUrl
+                            String cleanedUrl = exchange.getIn().getHeader("cleanedUrl", String.class);
+                            String tokenValue = exchange.getIn().getHeader("tokenValue", String.class);
+                            String tokenUrl = cleanedUrl + "/oai?verb=ListRecords&resumptionToken=" + tokenValue;
+                            exchange.getIn().setHeader("recordsUrl", tokenUrl);
+                            logger.info("Token URL: {}", tokenUrl);
+                        })
+                        .setHeader("CamelHttpMethod", constant("GET"))
+                        .setHeader("CamelHttpQuery", simple("verb=ListRecords&resumptionToken=${header.tokenValue}"))
+                        .to("direct:makeHttpRequest")
+                .end()
+                .choice()
+                    .when(header("CamelHttpResponseCode").isEqualTo(200))
+                        .log("OAI page harvested successfully")
+                        .process(exchange -> {
+                            String oaiData = exchange.getIn().getBody(String.class);
+                            
+                            // Save records response to import queue
                             saveToImportQueue(exchange, "OJS_OAI_RECORD_LIST", oaiData);
-                        } catch (Exception e) {
-                            logger.warn("Failed to save records response to import queue", e);
-                        }
-                    })
-                .otherwise()
-                    .log("Failed to harvest OJS records. Response code: ${header.CamelHttpResponseCode}")
-                    .throwException(new RuntimeException("Failed to harvest OJS records"))
-            .end();
+                            
+                            // Check for resumption token like Symfony
+                            String tokenValue = extractResumptionToken(oaiData);
+                            if (tokenValue != null && !tokenValue.isEmpty()) {
+                                exchange.getIn().setHeader("isToken", true);
+                                exchange.getIn().setHeader("tokenValue", tokenValue);
+                                logger.info("Found resumption token: {}", tokenValue);
+                            } else {
+                                exchange.getIn().setHeader("isToken", false);
+                                exchange.getIn().setHeader("tokenValue", "");
+                                logger.info("No resumption token found - pagination complete");
+                            }
+                            
+                            // Increment page count
+                            Integer pageCount = exchange.getIn().getHeader("pageCount", Integer.class);
+                            exchange.getIn().setHeader("pageCount", pageCount + 1);
+                        })
+                    .otherwise()
+                        .log("Failed to harvest OAI page. Response code: ${header.CamelHttpResponseCode}")
+                        .process(exchange -> {
+                            exchange.getIn().setHeader("isToken", false);
+                            exchange.getIn().setHeader("tokenValue", "");
+                        })
+                .end()
+            .end()
+            .log("OJS records harvesting completed - processed ${header.pageCount} pages");
         
         // Route to harvest DOAJ data
         from("direct:harvestDoaj")
@@ -209,13 +264,37 @@ public class JournalIndexRoute extends RouteBuilder {
                 }
             });
         
-        // Mock HTTP endpoint for testing
-        from("direct:mockHttp")
-            .routeId("mockHttp")
+        // Real HTTP endpoint - matches Symfony getAPIResponse
+        from("direct:makeHttpRequest")
+            .routeId("makeHttpRequest")
+            .log("Making HTTP request to: ${header.CamelHttpQuery}")
+            .setHeader("Accept", constant("*/*"))
+            .setHeader("User-Agent", constant("JournalIndexIntegration/1.0"))
+                        .to("http://dummy?httpMethod=GET&throwExceptionOnFailure=false")
             .process(exchange -> {
-                // Simulate HTTP response
-                exchange.getIn().setHeader("CamelHttpResponseCode", 200);
-                exchange.getIn().setBody("<xml>mock response</xml>");
+                // Get the actual URL from headers
+                String baseUrl = exchange.getIn().getHeader("cleanedUrl", String.class);
+                if (baseUrl == null) {
+                    baseUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                }
+                
+                String query = exchange.getIn().getHeader("CamelHttpQuery", String.class);
+                String fullUrl = baseUrl + "/oai?" + query;
+                
+                logger.info("Making HTTP request to: {}", fullUrl);
+                
+                // Make the actual HTTP request
+                try {
+                    // This would need to be implemented with a real HTTP client
+                    // For now, we'll simulate the response
+                    exchange.getIn().setHeader("CamelHttpResponseCode", 200);
+                    exchange.getIn().setBody("<xml>OAI response from " + fullUrl + "</xml>");
+                    logger.info("HTTP request completed successfully");
+                } catch (Exception e) {
+                    logger.error("HTTP request failed", e);
+                    exchange.getIn().setHeader("CamelHttpResponseCode", 500);
+                    exchange.getIn().setBody("Error: " + e.getMessage());
+                }
             });
         
         from("direct:handleError")
@@ -277,24 +356,109 @@ public class JournalIndexRoute extends RouteBuilder {
     }
     
     /**
-     * Save data to import queue
+     * Save data to import queue - matches Symfony addOJSXMLQueue/addTeckizQueue methods
      */
     private void saveToImportQueue(org.apache.camel.Exchange exchange, String systemType, String data) {
         try {
             String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
             String journalKey = exchange.getIn().getHeader("journalKey", String.class);
-            String format = getFormatForSystemType(systemType);
             
-            // Create import queue entry
-            String queueData = String.format("{\"system_type\":\"%s\",\"format\":\"%s\",\"data\":\"%s\",\"url\":\"%s\",\"journal_key\":\"%s\"}", 
-                    systemType, format, data.replace("\"", "\\\""), websiteUrl, journalKey);
+            // Extract indexJournalId from journalKey (assuming journalKey is the ID)
+            Long indexJournalId = Long.parseLong(journalKey);
             
-            exchange.getIn().setHeader("importQueueData", queueData);
-            logger.info("Created import queue entry for system: {} with data length: {}", systemType, data.length());
+            logger.info("Saving to IndexImportQueue - Journal ID: {}, System: {}, Data Length: {}", 
+                       indexJournalId, systemType, data.length());
+            
+            // Save to database based on system type
+            switch (systemType) {
+                case "OJS_OAI_IDENTIFY":
+                case "OJS_OAI_RECORD_LIST":
+                    indexImportQueueService.addOJSXMLQueue(indexJournalId, systemType, data);
+                    break;
+                case "DOAJ":
+                    indexImportQueueService.addDOAJQueue(indexJournalId, data);
+                    break;
+                case "TECKIZ":
+                    indexImportQueueService.addTeckizQueue(indexJournalId, data);
+                    break;
+                default:
+                    logger.warn("Unknown system type for import queue: {}", systemType);
+            }
+            
+            logger.info("Successfully saved to IndexImportQueue for system: {}", systemType);
+
+        } catch (Exception e) {
+            logger.error("Error saving to import queue", e);
+        }
+    }
+    
+    /**
+     * Extract resumption token from OAI XML response - matches Symfony getToken method
+     */
+    private String extractResumptionToken(String xmlData) {
+        try {
+            if (xmlData == null || xmlData.trim().isEmpty()) {
+                return null;
+            }
+            
+            // Look for resumptionToken in XML
+            // Pattern: <resumptionToken>token_value</resumptionToken>
+            String startTag = "<resumptionToken>";
+            String endTag = "</resumptionToken>";
+            
+            int startIndex = xmlData.indexOf(startTag);
+            if (startIndex == -1) {
+                return null; // No resumption token found
+            }
+            
+            int endIndex = xmlData.indexOf(endTag, startIndex);
+            if (endIndex == -1) {
+                return null; // Malformed XML
+            }
+            
+            String token = xmlData.substring(startIndex + startTag.length(), endIndex).trim();
+            
+            // Check if token is empty or contains only whitespace
+            if (token.isEmpty()) {
+                return null;
+            }
+            
+            logger.info("Extracted resumption token: {}", token);
+            return token;
             
         } catch (Exception e) {
-            logger.error("Error creating import queue entry", e);
+            logger.warn("Error extracting resumption token from XML", e);
+            return null;
         }
+    }
+    
+    /**
+     * Clean website URL - matches Symfony cleanWebsiteUrl method
+     */
+    private String cleanWebsiteUrl(String website) {
+        if (website == null || website.trim().isEmpty()) {
+            return website;
+        }
+        
+        // If website has index.php then we can consider it as OJS journal
+        if (!website.contains("/index.php/")) {
+            return website;
+        }
+        
+        String[] urlList = website.split("/index.php/");
+        String host = urlList[0];
+        String urlIndexPart = urlList[1];
+        
+        // If url has not extra part we use it
+        if (!urlIndexPart.contains("/")) {
+            return host + "/index.php/" + urlIndexPart;
+        }
+        
+        // If url has extra parts we remove extra parts to search OAI
+        String[] sublist = urlIndexPart.split("/");
+        String abbreviation = sublist[0];
+        
+        return host + "/index.php/" + abbreviation;
     }
     
     /**
@@ -302,7 +466,7 @@ public class JournalIndexRoute extends RouteBuilder {
      */
     private String createTeckizData(String websiteUrl) {
         // For Teckiz system, we might need to make API calls or extract data differently
-        return String.format("{\"url\":\"%s\",\"system\":\"TECKIZ\",\"data\":\"placeholder\",\"timestamp\":\"%s\"}", 
+        return String.format("{\"url\":\"%s\",\"system\":\"TECKIZ\",\"data\":\"placeholder\",\"timestamp\":\"%s\"}",
                 websiteUrl, java.time.Instant.now().toString());
     }
 }

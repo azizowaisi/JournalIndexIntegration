@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,9 +13,9 @@ import java.util.List;
  * IndexJournalArticle entity representing journal articles
  */
 @Entity
-@Table(name = "indexJournalArticle", indexes = {
-    @Index(name = "idx_article_page", columnList = "article_key, doi, publisher_record_id"),
-    @Index(name = "idx_article_publish_at", columnList = "published_at")
+@Table(name = "IndexJournalArticle", indexes = {
+    @Index(name = "indexed_article_page_index", columnList = "article_key, doi, publisher_record_id"),
+    @Index(name = "indexed_article_publish_at_index", columnList = "published_at")
 })
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalArticle {

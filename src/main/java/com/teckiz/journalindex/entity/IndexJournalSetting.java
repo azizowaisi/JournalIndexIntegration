@@ -4,14 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
  * IndexJournalSetting entity representing journal settings
  */
 @Entity
-@Table(name = "indexJournalSetting")
+@Table(name = "IndexJournalSetting")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalSetting {
     

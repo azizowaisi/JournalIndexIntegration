@@ -10,6 +10,7 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.engine.DefaultProducerTemplate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,30 +24,40 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     private static final Logger logger = LogManager.getLogger(LambdaHandler.class);
     private static CamelContext camelContext;
     private static ProducerTemplate producerTemplate;
+    private static AnnotationConfigApplicationContext springContext;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     static {
         try {
-            logger.info("=== INITIALIZING CAMEL CONTEXT ===");
+            logger.info("=== INITIALIZING SPRING AND CAMEL CONTEXT ===");
+            
+            // Initialize Spring context
+            springContext = new AnnotationConfigApplicationContext();
+            springContext.register(com.teckiz.journalindex.config.ApplicationConfig.class);
+            springContext.refresh();
+            logger.info("Spring context initialized");
+            
             // Initialize Camel context
             camelContext = new DefaultCamelContext();
             logger.info("Camel context created");
-            
-            camelContext.addRoutes(new JournalIndexRoute());
+
+            // Get JournalIndexRoute from Spring context
+            JournalIndexRoute journalIndexRoute = springContext.getBean(JournalIndexRoute.class);
+            camelContext.addRoutes(journalIndexRoute);
             logger.info("Routes added to Camel context");
-            
+
             camelContext.start();
             logger.info("Camel context started");
-            
+
             // Initialize producer template
             producerTemplate = new DefaultProducerTemplate(camelContext);
             producerTemplate.start();
             logger.info("Producer template started");
-            
-            logger.info("Camel context initialized successfully");
+
+            logger.info("Spring and Camel context initialized successfully");
         } catch (Exception e) {
-            logger.error("Failed to initialize Camel context", e);
-            throw new RuntimeException("Failed to initialize Camel context", e);
+            logger.error("Failed to initialize Spring and Camel context", e);
+            throw new RuntimeException("Failed to initialize Spring and Camel context", e);
         }
     }
     
@@ -54,16 +65,14 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     public String handleRequest(SQSEvent sqsEvent, Context context) {
         logger.info("=== LAMBDA FUNCTION STARTED ===");
         logger.info("Received SQS event with {} records", sqsEvent.getRecords().size());
-        System.out.println("=== LAMBDA FUNCTION STARTED (System.out) ===");
-        System.out.println("SQS Event: " + sqsEvent);
-        System.out.println("Records count: " + sqsEvent.getRecords().size());
-        System.out.println("Environment variables:");
-        System.out.println("FUNCTION_TYPE: " + System.getenv("FUNCTION_TYPE"));
-        System.out.println("LOG_LEVEL: " + System.getenv("LOG_LEVEL"));
+        logger.info("SQS Event: {}", sqsEvent);
+        logger.info("Records count: {}", sqsEvent.getRecords().size());
+        logger.info("Environment variables:");
+        logger.info("FUNCTION_TYPE: {}", System.getenv("FUNCTION_TYPE"));
+        logger.info("LOG_LEVEL: {}", System.getenv("LOG_LEVEL"));
         
         if (sqsEvent.getRecords() == null || sqsEvent.getRecords().isEmpty()) {
             logger.warn("No SQS records found in event");
-            System.out.println("No SQS records found in event");
             return "No SQS records found";
         }
         
@@ -89,7 +98,6 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                     }
                     
                     logger.info("Processing website URL: {} for journal: {}", websiteUrl, journalKey);
-                    System.out.println("Processing website URL: " + websiteUrl + " for journal: " + journalKey);
                     
                     // Create headers for Camel route
                     Map<String, Object> headers = new HashMap<>();
@@ -99,17 +107,13 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                     headers.put("receiptHandle", message.getReceiptHandle());
                     
                     logger.info("Sending message to Camel route with headers: {}", headers);
-                    System.out.println("Sending message to Camel route with headers: " + headers);
                     
                     try {
                         // Send message to Camel route for processing
                         String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", null, headers, String.class);
                         logger.info("Message sent to Camel route successfully. Result: {}", result);
-                        System.out.println("Message sent to Camel route successfully. Result: " + result);
                     } catch (Exception camelException) {
                         logger.error("Error in Camel route processing", camelException);
-                        System.out.println("Error in Camel route processing: " + camelException.getMessage());
-                        camelException.printStackTrace();
                     }
                     
                 } catch (Exception e) {
@@ -119,13 +123,10 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
             
             String result = "Successfully processed " + sqsEvent.getRecords().size() + " messages";
             logger.info("=== LAMBDA FUNCTION COMPLETED: {} ===", result);
-            System.out.println("=== LAMBDA FUNCTION COMPLETED (System.out): " + result + " ===");
             return result;
             
         } catch (Exception e) {
             logger.error("=== LAMBDA FUNCTION ERROR ===", e);
-            System.out.println("=== LAMBDA FUNCTION ERROR (System.out) ===");
-            e.printStackTrace();
             throw new RuntimeException("Error processing SQS event", e);
         }
     }

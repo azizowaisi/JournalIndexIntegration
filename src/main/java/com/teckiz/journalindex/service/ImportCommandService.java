@@ -32,7 +32,8 @@ public class ImportCommandService {
     public boolean processOneImportQueue() {
         try {
             // Get one import queue entry for processing
-            Optional<IndexImportQueue> importQueueOpt = importQueueRepository.findByIndexedFalseAndErrorFalseOrderByCreatedAtAsc();
+            List<IndexImportQueue> importQueues = importQueueRepository.findByIndexedFalseAndErrorFalseOrderByCreatedAtAsc();
+            Optional<IndexImportQueue> importQueueOpt = importQueues.isEmpty() ? Optional.empty() : Optional.of(importQueues.get(0));
             
             if (importQueueOpt.isEmpty()) {
                 logger.info("Index Journal Import queue is empty and waiting for new data...");
@@ -110,15 +111,15 @@ public class ImportCommandService {
      */
     private boolean isProcessingComplete(IndexImportQueue importQueue) {
         try {
-            String totalRecords = importQueue.getTotalRecords();
-            String indexedRecords = importQueue.getIndexedRecords();
+            Integer totalRecords = importQueue.getTotalRecords();
+            Integer indexedRecords = importQueue.getIndexedRecords();
             
             if (totalRecords == null || indexedRecords == null) {
                 return true; // Assume complete if no record counts
             }
             
-            int total = Integer.parseInt(totalRecords);
-            int indexed = Integer.parseInt(indexedRecords);
+            int total = totalRecords;
+            int indexed = indexedRecords;
             
             return indexed >= total;
             

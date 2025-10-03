@@ -4,14 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 
 /**
  * IndexJournalAuthor entity representing journal article authors
  */
 @Entity
-@Table(name = "indexJournalAuthor", indexes = {
-    @Index(name = "idx_author_name", columnList = "name")
+@Table(name = "IndexJournalAuthor", indexes = {
+    @Index(name = "indexed_article_author_name_index", columnList = "name")
 })
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalAuthor {

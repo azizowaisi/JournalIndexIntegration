@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.List;
  * Company entity representing organizations in the journal indexing system
  */
 @Entity
-@Table(name = "company")
+@Table(name = "Company")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Company {
     

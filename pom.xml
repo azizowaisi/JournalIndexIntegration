@@ -13,8 +13,8 @@
     <description>Fanout Lambda service for OAI harvesting and MySQL storage</description>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <camel.version>3.20.2</camel.version>
         <aws.lambda.version>1.2.2</aws.lambda.version>
@@ -46,12 +46,13 @@
             <version>${camel.version}</version>
         </dependency>
 
-        <!-- Apache Camel HTTP -->
-        <dependency>
-            <groupId>org.apache.camel</groupId>
-            <artifactId>camel-http</artifactId>
-            <version>${camel.version}</version>
-        </dependency>
+                    <!-- Apache Camel HTTP -->
+                    <dependency>
+                        <groupId>org.apache.camel</groupId>
+                        <artifactId>camel-http</artifactId>
+                        <version>${camel.version}</version>
+                    </dependency>
+
 
         <!-- Apache Camel SQL -->
         <dependency>
@@ -109,11 +110,39 @@
             <version>5.3.23</version>
         </dependency>
 
-        <!-- Hibernate Core -->
+        <!-- Jakarta Persistence API -->
         <dependency>
-            <groupId>org.hibernate</groupId>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+            <version>3.1.0</version>
+        </dependency>
+
+        <!-- Jakarta Validation API -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>3.0.2</version>
+        </dependency>
+
+        <!-- Jakarta Annotations API -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <version>2.1.1</version>
+        </dependency>
+
+        <!-- Hibernate Core with Jakarta support -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
-            <version>5.6.15.Final</version>
+            <version>6.2.7.Final</version>
+        </dependency>
+
+        <!-- Hibernate Validator with Jakarta support -->
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>8.0.1.Final</version>
         </dependency>
 
         <!-- Apache Commons DBCP2 for connection pooling -->
@@ -241,7 +270,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.12</version>
                 <executions>
                     <execution>
                         <goals>

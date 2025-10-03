@@ -28,20 +28,10 @@ public class ImportQueueService {
         try {
             IndexImportQueue importQueue = new IndexImportQueue();
             importQueue.setSystemType(systemType);
-            importQueue.setFormat(format);
             importQueue.setData(data);
-            importQueue.setCompanyKey(companyKey);
-            importQueue.setJournalKey(journalKey);
-            importQueue.setIndexed(false);
-            importQueue.setError(false);
-            importQueue.setMessage("Created from SQS message");
             importQueue.setCreatedAt(LocalDateTime.now());
             importQueue.setUpdatedAt(LocalDateTime.now());
             
-            // Calculate total records from data
-            int totalRecords = calculateTotalRecords(data, systemType);
-            importQueue.setTotalRecords(String.valueOf(totalRecords));
-            importQueue.setIndexedRecords("0");
             
             IndexImportQueue savedQueue = importQueueRepository.save(importQueue);
             logger.info("Created import queue entry with ID: {} for system: {}", savedQueue.getId(), systemType);
@@ -180,7 +170,7 @@ public class ImportQueueService {
             IndexImportQueue importQueue = importQueueRepository.findById(queueId)
                     .orElseThrow(() -> new RuntimeException("Import queue not found with ID: " + queueId));
             
-            importQueue.setIndexedRecords(String.valueOf(indexedRecords));
+            importQueue.setIndexedRecords(indexedRecords);
             importQueueRepository.save(importQueue);
             
         } catch (Exception e) {
