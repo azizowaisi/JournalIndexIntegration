@@ -36,12 +36,16 @@ public class JournalIndexRouteTest extends CamelTestSupport {
     
     @Test
     public void testProcessOaiUrl() throws Exception {
-        // Test data
+        // Test data - simulate SQS message format
         String testUrl = "https://example.com/oai";
+        String journalKey = "TEST_JOURNAL";
+        
+        // Create JSON message body as expected by LambdaHandler
+        String messageBody = String.format("{\"url\":\"%s\",\"journal_key\":\"%s\"}", testUrl, journalKey);
         
         // Send message to the route with required headers
-        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", testUrl, 
-            Map.of("websiteUrl", testUrl, "journalKey", "TEST_JOURNAL"), String.class);
+        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", messageBody, 
+            Map.of("websiteUrl", testUrl, "journalKey", journalKey), String.class);
         
         // Verify the result
         assertNotNull(result);
@@ -50,12 +54,16 @@ public class JournalIndexRouteTest extends CamelTestSupport {
     
     @Test
     public void testInvalidUrl() throws Exception {
-        // Test with empty URL
+        // Test with empty URL - simulate SQS message format
         String emptyUrl = "";
+        String journalKey = "TEST_JOURNAL";
+        
+        // Create JSON message body with empty URL
+        String messageBody = String.format("{\"url\":\"%s\",\"journal_key\":\"%s\"}", emptyUrl, journalKey);
         
         try {
-            producerTemplate.requestBodyAndHeaders("direct:processWebsite", emptyUrl, 
-                Map.of("websiteUrl", emptyUrl, "journalKey", "TEST_JOURNAL"), String.class);
+            producerTemplate.requestBodyAndHeaders("direct:processWebsite", messageBody, 
+                Map.of("websiteUrl", emptyUrl, "journalKey", journalKey), String.class);
             fail("Should have thrown an exception for empty URL");
         } catch (Exception e) {
             // Check if the exception message contains our validation error
@@ -69,12 +77,16 @@ public class JournalIndexRouteTest extends CamelTestSupport {
     
     @Test
     public void testUrlNormalization() throws Exception {
-        // Test URL without protocol
+        // Test URL without protocol - simulate SQS message format
         String urlWithoutProtocol = "example.com/oai";
+        String journalKey = "TEST_JOURNAL";
+        
+        // Create JSON message body as expected by LambdaHandler
+        String messageBody = String.format("{\"url\":\"%s\",\"journal_key\":\"%s\"}", urlWithoutProtocol, journalKey);
         
         // This should be normalized to include https://
-        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", urlWithoutProtocol, 
-            Map.of("websiteUrl", urlWithoutProtocol, "journalKey", "TEST_JOURNAL"), String.class);
+        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", messageBody, 
+            Map.of("websiteUrl", urlWithoutProtocol, "journalKey", journalKey), String.class);
         
         assertNotNull(result);
         assertTrue(result.contains("Successfully processed"));
