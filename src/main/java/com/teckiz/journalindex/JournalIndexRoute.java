@@ -1,18 +1,25 @@
 package com.teckiz.journalindex;
 
 import com.teckiz.journalindex.service.OaiHarvestService;
+import com.teckiz.journalindex.service.IndexImportQueueService;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.jackson.JacksonDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Camel route configuration for processing OAI URLs and harvesting data
  */
+@Component
 public class JournalIndexRoute extends RouteBuilder {
-    
+
     private static final Logger logger = LogManager.getLogger(JournalIndexRoute.class);
+    
+    @Autowired
+    private IndexImportQueueService indexImportQueueService;
     
     @Override
     public void configure() throws Exception {
@@ -277,23 +284,44 @@ public class JournalIndexRoute extends RouteBuilder {
     }
     
     /**
-     * Save data to import queue
+     * Save data to import queue - matches Symfony addOJSXMLQueue/addTeckizQueue methods
      */
     private void saveToImportQueue(org.apache.camel.Exchange exchange, String systemType, String data) {
         try {
             String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
             String journalKey = exchange.getIn().getHeader("journalKey", String.class);
-            String format = getFormatForSystemType(systemType);
             
-            // Create import queue entry
-            String queueData = String.format("{\"system_type\":\"%s\",\"format\":\"%s\",\"data\":\"%s\",\"url\":\"%s\",\"journal_key\":\"%s\"}", 
-                    systemType, format, data.replace("\"", "\\\""), websiteUrl, journalKey);
+            // Extract indexJournalId from journalKey (assuming journalKey is the ID)
+            Long indexJournalId = Long.parseLong(journalKey);
             
-            exchange.getIn().setHeader("importQueueData", queueData);
-            logger.info("Created import queue entry for system: {} with data length: {}", systemType, data.length());
+            logger.info("Saving to IndexImportQueue - Journal ID: {}, System: {}, Data Length: {}", 
+                       indexJournalId, systemType, data.length());
+            System.out.println("Saving to IndexImportQueue - Journal ID: " + indexJournalId + 
+                             ", System: " + systemType + ", Data Length: " + data.length());
             
+            // Save to database based on system type
+            switch (systemType) {
+                case "OJS_OAI_IDENTIFY":
+                case "OJS_OAI_RECORD_LIST":
+                    indexImportQueueService.addOJSXMLQueue(indexJournalId, systemType, data);
+                    break;
+                case "DOAJ":
+                    indexImportQueueService.addDOAJQueue(indexJournalId, data);
+                    break;
+                case "TECKIZ":
+                    indexImportQueueService.addTeckizQueue(indexJournalId, data);
+                    break;
+                default:
+                    logger.warn("Unknown system type for import queue: {}", systemType);
+            }
+            
+            logger.info("Successfully saved to IndexImportQueue for system: {}", systemType);
+            System.out.println("Successfully saved to IndexImportQueue for system: " + systemType);
+
         } catch (Exception e) {
-            logger.error("Error creating import queue entry", e);
+            logger.error("Error saving to import queue", e);
+            System.out.println("Error saving to import queue: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     

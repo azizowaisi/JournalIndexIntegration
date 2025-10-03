@@ -1,88 +1,30 @@
 package com.teckiz.journalindex.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * IndexJournal entity representing journals in the indexing system
+ * IndexJournal entity - matches Symfony AppBundle\Entity\IndexJournal
  */
 @Entity
-@Table(name = "indexJournal", indexes = {
-    @Index(name = "idx_journal_search", columnList = "name, keywords, e_issn, country"),
-    @Index(name = "idx_journal_key", columnList = "journal_key")
-})
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Table(name = "index_journal")
 public class IndexJournal {
-    
-    private static final Logger logger = LogManager.getLogger(IndexJournal.class);
-    
-    // Status constants
-    public static final String RJ_APPROVED = "approved";
-    public static final String RJ_RECEIVED = "received";
-    public static final String RJ_PENDING = "pending";
-    public static final String RJ_SUSPEND = "suspend";
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
     
-    @Column(name = "journal_key", length = 20, unique = true)
-    private String journalKey;
-    
-    @Column(name = "name", length = 255)
+    @Column(name = "name")
     private String name;
     
-    @Column(name = "keywords", length = 255)
-    private String keywords;
-    
-    @Column(name = "e_issn", length = 255)
-    private String eissn;
-    
-    @Column(name = "website", length = 255)
+    @Column(name = "website")
     private String website;
     
-    @Column(name = "publisher", length = 255)
-    private String publisher;
+    @Column(name = "eissn")
+    private String eissn;
     
-    @Column(name = "society", length = 255)
-    private String society;
-    
-    @Column(name = "start_year", length = 10)
-    private String startYear;
-    
-    @Column(name = "review_process_type", length = 50)
-    private String reviewProcessType;
-    
-    @Column(name = "submission_date")
-    private LocalDateTime submissionDate;
-    
-    @Column(name = "approval_date")
-    private LocalDateTime approvalDate;
-    
-    @Column(name = "approved_by", length = 255)
-    private String approvedBy;
-    
-    @Column(name = "status", length = 10)
-    private String status = RJ_RECEIVED;
-    
-    @Column(name = "country", length = 10)
-    private String country;
-    
-    @Column(name = "email", length = 255)
-    private String email;
-    
-    @Column(name = "phone", length = 255)
-    private String phone;
-    
-    @Column(name = "contact_person", length = 255)
-    private String contactPerson;
+    @Column(name = "issn")
+    private String issn;
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -90,24 +32,11 @@ public class IndexJournal {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    // Relationships
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id")
-    private Company company;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "subject_id")
-    private IndexJournalSubject subject;
-    
-    @OneToMany(mappedBy = "indexJournal", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalLanguage> languages = new ArrayList<>();
-    
-    @OneToOne(mappedBy = "journal", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private IndexJournalSetting setting;
+    @Column(name = "is_active")
+    private Boolean isActive = true;
     
     // Constructors
     public IndexJournal() {
-        this.journalKey = generateEntityKey();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -121,36 +50,12 @@ public class IndexJournal {
         this.id = id;
     }
     
-    public String getJournalKey() {
-        return journalKey;
-    }
-    
-    public void setJournalKey(String journalKey) {
-        this.journalKey = journalKey;
-    }
-    
     public String getName() {
         return name;
     }
     
     public void setName(String name) {
         this.name = name;
-    }
-    
-    public String getKeywords() {
-        return keywords;
-    }
-    
-    public void setKeywords(String keywords) {
-        this.keywords = keywords;
-    }
-    
-    public String getEissn() {
-        return eissn;
-    }
-    
-    public void setEissn(String eissn) {
-        this.eissn = eissn;
     }
     
     public String getWebsite() {
@@ -161,100 +66,20 @@ public class IndexJournal {
         this.website = website;
     }
     
-    public String getPublisher() {
-        return publisher;
+    public String getEissn() {
+        return eissn;
     }
     
-    public void setPublisher(String publisher) {
-        this.publisher = publisher;
+    public void setEissn(String eissn) {
+        this.eissn = eissn;
     }
     
-    public String getSociety() {
-        return society;
+    public String getIssn() {
+        return issn;
     }
     
-    public void setSociety(String society) {
-        this.society = society;
-    }
-    
-    public String getStartYear() {
-        return startYear;
-    }
-    
-    public void setStartYear(String startYear) {
-        this.startYear = startYear;
-    }
-    
-    public String getReviewProcessType() {
-        return reviewProcessType;
-    }
-    
-    public void setReviewProcessType(String reviewProcessType) {
-        this.reviewProcessType = reviewProcessType;
-    }
-    
-    public LocalDateTime getSubmissionDate() {
-        return submissionDate;
-    }
-    
-    public void setSubmissionDate(LocalDateTime submissionDate) {
-        this.submissionDate = submissionDate;
-    }
-    
-    public LocalDateTime getApprovalDate() {
-        return approvalDate;
-    }
-    
-    public void setApprovalDate(LocalDateTime approvalDate) {
-        this.approvalDate = approvalDate;
-    }
-    
-    public String getApprovedBy() {
-        return approvedBy;
-    }
-    
-    public void setApprovedBy(String approvedBy) {
-        this.approvedBy = approvedBy;
-    }
-    
-    public String getStatus() {
-        return status;
-    }
-    
-    public void setStatus(String status) {
-        this.status = status;
-    }
-    
-    public String getCountry() {
-        return country;
-    }
-    
-    public void setCountry(String country) {
-        this.country = country;
-    }
-    
-    public String getEmail() {
-        return email;
-    }
-    
-    public void setEmail(String email) {
-        this.email = email;
-    }
-    
-    public String getPhone() {
-        return phone;
-    }
-    
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-    
-    public String getContactPerson() {
-        return contactPerson;
-    }
-    
-    public void setContactPerson(String contactPerson) {
-        this.contactPerson = contactPerson;
+    public void setIssn(String issn) {
+        this.issn = issn;
     }
     
     public LocalDateTime getCreatedAt() {
@@ -273,56 +98,11 @@ public class IndexJournal {
         this.updatedAt = updatedAt;
     }
     
-    // Relationship getters and setters
-    public Company getCompany() {
-        return company;
+    public Boolean getIsActive() {
+        return isActive;
     }
     
-    public void setCompany(Company company) {
-        this.company = company;
-    }
-    
-    public IndexJournalSubject getSubject() {
-        return subject;
-    }
-    
-    public void setSubject(IndexJournalSubject subject) {
-        this.subject = subject;
-    }
-    
-    public List<IndexJournalLanguage> getLanguages() {
-        return languages;
-    }
-    
-    public void setLanguages(List<IndexJournalLanguage> languages) {
-        this.languages = languages;
-    }
-    
-    public IndexJournalSetting getSetting() {
-        return setting;
-    }
-    
-    public void setSetting(IndexJournalSetting setting) {
-        this.setting = setting;
-    }
-    
-    // Utility methods
-    private String generateEntityKey() {
-        return "JRN_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
-    }
-    
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-    
-    @Override
-    public String toString() {
-        return "IndexJournal{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", eissn='" + eissn + '\'' +
-                ", status='" + status + '\'' +
-                '}';
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 }

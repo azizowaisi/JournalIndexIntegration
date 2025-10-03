@@ -10,6 +10,7 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.engine.DefaultProducerTemplate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,30 +24,40 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     private static final Logger logger = LogManager.getLogger(LambdaHandler.class);
     private static CamelContext camelContext;
     private static ProducerTemplate producerTemplate;
+    private static AnnotationConfigApplicationContext springContext;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     static {
         try {
-            logger.info("=== INITIALIZING CAMEL CONTEXT ===");
+            logger.info("=== INITIALIZING SPRING AND CAMEL CONTEXT ===");
+            
+            // Initialize Spring context
+            springContext = new AnnotationConfigApplicationContext();
+            springContext.register(com.teckiz.journalindex.config.ApplicationConfig.class);
+            springContext.refresh();
+            logger.info("Spring context initialized");
+            
             // Initialize Camel context
             camelContext = new DefaultCamelContext();
             logger.info("Camel context created");
-            
-            camelContext.addRoutes(new JournalIndexRoute());
+
+            // Get JournalIndexRoute from Spring context
+            JournalIndexRoute journalIndexRoute = springContext.getBean(JournalIndexRoute.class);
+            camelContext.addRoutes(journalIndexRoute);
             logger.info("Routes added to Camel context");
-            
+
             camelContext.start();
             logger.info("Camel context started");
-            
+
             // Initialize producer template
             producerTemplate = new DefaultProducerTemplate(camelContext);
             producerTemplate.start();
             logger.info("Producer template started");
-            
-            logger.info("Camel context initialized successfully");
+
+            logger.info("Spring and Camel context initialized successfully");
         } catch (Exception e) {
-            logger.error("Failed to initialize Camel context", e);
-            throw new RuntimeException("Failed to initialize Camel context", e);
+            logger.error("Failed to initialize Spring and Camel context", e);
+            throw new RuntimeException("Failed to initialize Spring and Camel context", e);
         }
     }
     
