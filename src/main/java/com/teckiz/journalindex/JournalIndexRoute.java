@@ -35,7 +35,9 @@ public class JournalIndexRoute extends RouteBuilder {
             .log("Processing website URL: ${header.websiteUrl} for journal: ${header.journalKey}")
             .process(exchange -> {
                 logger.info("=== INSIDE CAMEL PROCESSOR ===");
+                System.out.println("=== INSIDE CAMEL PROCESSOR (System.out) ===");
                 logger.info("Headers: {}", exchange.getIn().getHeaders());
+                System.out.println("Headers: " + exchange.getIn().getHeaders());
                 String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
                 String journalKey = exchange.getIn().getHeader("journalKey", String.class);
                 

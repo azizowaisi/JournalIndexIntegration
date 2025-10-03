@@ -89,6 +89,7 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                     }
                     
                     logger.info("Processing website URL: {} for journal: {}", websiteUrl, journalKey);
+                    System.out.println("Processing website URL: " + websiteUrl + " for journal: " + journalKey);
                     
                     // Create headers for Camel route
                     Map<String, Object> headers = new HashMap<>();
@@ -98,11 +99,18 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                     headers.put("receiptHandle", message.getReceiptHandle());
                     
                     logger.info("Sending message to Camel route with headers: {}", headers);
+                    System.out.println("Sending message to Camel route with headers: " + headers);
                     
-                    // Send message to Camel route for processing
-                    producerTemplate.sendBodyAndHeaders("direct:processWebsite", null, headers);
-                    
-                    logger.info("Message sent to Camel route successfully");
+                    try {
+                        // Send message to Camel route for processing
+                        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", null, headers, String.class);
+                        logger.info("Message sent to Camel route successfully. Result: {}", result);
+                        System.out.println("Message sent to Camel route successfully. Result: " + result);
+                    } catch (Exception camelException) {
+                        logger.error("Error in Camel route processing", camelException);
+                        System.out.println("Error in Camel route processing: " + camelException.getMessage());
+                        camelException.printStackTrace();
+                    }
                     
                 } catch (Exception e) {
                     logger.error("Error parsing message body: {}", messageBody, e);
