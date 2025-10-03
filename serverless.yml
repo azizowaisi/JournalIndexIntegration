@@ -37,9 +37,7 @@ provider:
             - logs:PutLogEvents
             - logs:DescribeLogGroups
             - logs:DescribeLogStreams
-          Resource: 
-            - !Sub '/aws/lambda/${JournalProcessorLambdaFunction}'
-            - !Sub '/aws/lambda/${JournalProcessorLambdaFunction}:*'
+          Resource: '*'
         - Effect: Allow
           Action:
             - events:PutRule
@@ -91,7 +89,7 @@ resources:
     JournalProcessorLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
-        LogGroupName: !Sub '/aws/lambda/${JournalProcessorLambdaFunction}'
+        LogGroupName: /aws/lambda/journal-index-integration-${self:provider.stage}-processor
         RetentionInDays: 14
 
     # CloudWatch Alarms

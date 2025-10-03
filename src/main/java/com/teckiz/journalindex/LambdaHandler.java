@@ -52,7 +52,9 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     
     @Override
     public String handleRequest(SQSEvent sqsEvent, Context context) {
+        logger.info("=== LAMBDA FUNCTION STARTED ===");
         logger.info("Received SQS event with {} records", sqsEvent.getRecords().size());
+        System.out.println("=== LAMBDA FUNCTION STARTED (System.out) ===");
         
         try {
             for (SQSEvent.SQSMessage message : sqsEvent.getRecords()) {
@@ -96,10 +98,15 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                 }
             }
             
-            return "Successfully processed " + sqsEvent.getRecords().size() + " messages";
+            String result = "Successfully processed " + sqsEvent.getRecords().size() + " messages";
+            logger.info("=== LAMBDA FUNCTION COMPLETED: {} ===", result);
+            System.out.println("=== LAMBDA FUNCTION COMPLETED (System.out): " + result + " ===");
+            return result;
             
         } catch (Exception e) {
-            logger.error("Error processing SQS event", e);
+            logger.error("=== LAMBDA FUNCTION ERROR ===", e);
+            System.out.println("=== LAMBDA FUNCTION ERROR (System.out) ===");
+            e.printStackTrace();
             throw new RuntimeException("Error processing SQS event", e);
         }
     }
