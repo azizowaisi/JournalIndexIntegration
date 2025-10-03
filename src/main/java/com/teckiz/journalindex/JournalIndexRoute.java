@@ -31,9 +31,12 @@ public class JournalIndexRoute extends RouteBuilder {
         // Main route to process website URLs from SQS
         from("direct:processWebsite")
             .routeId("processWebsite")
+            .log("=== CAMEL ROUTE STARTED ===")
             .log("Processing website URL: ${header.websiteUrl} for journal: ${header.journalKey}")
             .process(exchange -> {
-                String websiteUrl = exchange.getIn().getBody(String.class);
+                logger.info("=== INSIDE CAMEL PROCESSOR ===");
+                logger.info("Headers: {}", exchange.getIn().getHeaders());
+                String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
                 String journalKey = exchange.getIn().getHeader("journalKey", String.class);
                 
                 // Validate URL format
@@ -104,6 +107,13 @@ public class JournalIndexRoute extends RouteBuilder {
         from("direct:harvestOjsOai")
             .routeId("harvestOjsOai")
             .log("Harvesting OJS OAI data from: ${header.websiteUrl}")
+            .process(exchange -> {
+                // Append /oai to the base URL (like Symfony system)
+                String baseUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                String oaiUrl = baseUrl.endsWith("/") ? baseUrl + "oai" : baseUrl + "/oai";
+                exchange.getIn().setHeader("oaiUrl", oaiUrl);
+                logger.info("Constructed OAI URL: {}", oaiUrl);
+            })
             .setHeader("CamelHttpMethod", constant("GET"))
             .setHeader("CamelHttpQuery", constant("verb=Identify"))
             .to("direct:mockHttp")
@@ -112,8 +122,8 @@ public class JournalIndexRoute extends RouteBuilder {
                     .log("OJS OAI endpoint discovered successfully")
                     .process(exchange -> {
                         String response = exchange.getIn().getBody(String.class);
-                        String baseUrl = exchange.getIn().getHeader("websiteUrl", String.class);
-                        exchange.getIn().setHeader("oaiBaseUrl", baseUrl);
+                        String oaiUrl = exchange.getIn().getHeader("oaiUrl", String.class);
+                        exchange.getIn().setHeader("oaiBaseUrl", oaiUrl);
                         exchange.getIn().setHeader("oaiData", response);
                         
                         // Save identify response to import queue
@@ -132,7 +142,7 @@ public class JournalIndexRoute extends RouteBuilder {
         // Route to harvest OJS records
         from("direct:harvestOjsRecords")
             .routeId("harvestOjsRecords")
-            .log("Harvesting OJS records from: ${header.oaiBaseUrl}")
+            .log("Harvesting OJS records from: ${header.oaiUrl}")
             .setHeader("CamelHttpMethod", constant("GET"))
             .setHeader("CamelHttpQuery", constant("verb=ListRecords&metadataPrefix=oai_dc"))
             .to("direct:mockHttp")
@@ -227,11 +237,6 @@ public class JournalIndexRoute extends RouteBuilder {
         
         String url = websiteUrl.toLowerCase();
         
-        // Check for OJS OAI endpoints
-        if (url.contains("/index.php/") || url.contains("/oai")) {
-            return "OJS_OAI";
-        }
-        
         // Check for DOAJ endpoints
         if (url.contains("doaj.org")) {
             return "DOAJ";
@@ -242,7 +247,7 @@ public class JournalIndexRoute extends RouteBuilder {
             return "TECKIZ";
         }
         
-        // Default to OJS OAI for journal websites
+        // Default to OJS_OAI for journal websites (like your Symfony system)
         return "OJS_OAI";
     }
     
