@@ -14,6 +14,7 @@ provider:
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
     SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
+    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
   iam:
     role:
       statements:
@@ -41,6 +42,13 @@ provider:
             - events:PutTargets
             - events:DescribeRule
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - arn:aws:s3:::${env:S3_BUCKET_NAME}/*
   tags:
     Service: ${self:service}
     Environment: ${self:provider.stage}
@@ -50,48 +58,25 @@ package:
   artifact: target/journal-index-integration-1.0.0.jar
 
 functions:
-  # CreatorCommand Lambda - Handles SQS messages and creates IndexImportQueue entries
-  creatorCommand:
+  # Journal Processor Lambda - Single unified process
+  journalProcessor:
     handler: com.teckiz.journalindex.LambdaHandler
-    name: ${self:service}-${self:provider.stage}-creator
-    description: "CreatorCommand: Fetches data from OAI endpoints and saves to IndexImportQueue"
-    timeout: 300
-    memorySize: 512
+    name: ${self:service}-${self:provider.stage}-processor
+    description: "Journal Processor: Receives SQS messages, fetches OAI data, saves to S3 and database"
+    timeout: 900
+    memorySize: 1024
     events:
       - sqs:
           arn: ${env:SQS_QUEUE_ARN}
           batchSize: 1
           functionResponseType: ReportBatchItemFailures
     environment:
-      FUNCTION_TYPE: creator
-    tags:
-      Service: ${self:service}
-      Function: creator
-      Environment: ${self:provider.stage}
-
-  # ImportCommand Lambda - Processes IndexImportQueue entries
-  importCommand:
-    handler: com.teckiz.journalindex.ImportCommandLambdaHandler
-    name: ${self:service}-${self:provider.stage}-importer
-    description: "ImportCommand: Processes IndexImportQueue entries and maps data to database entities"
-    timeout: 180
-    memorySize: 256
-    events:
-      - schedule:
-          rate: rate(5 minutes)
-          enabled: true
-          description: "Process IndexImportQueue entries every 5 minutes"
-      - schedule:
-          rate: cron(0 2 * * ? *)
-          enabled: false
-          description: "Daily cleanup at 2 AM UTC (disabled by default)"
-    environment:
-      FUNCTION_TYPE: importer
+      FUNCTION_TYPE: processor
       BATCH_SIZE: 10
       MAX_RETRIES: 3
     tags:
       Service: ${self:service}
-      Function: importer
+      Function: processor
       Environment: ${self:provider.stage}
 
 # Custom resources
@@ -110,13 +95,11 @@ resources:
             Value: ${self:service}
           - Key: Environment
             Value: ${self:provider.stage}
-
-
     # CloudWatch Log Groups
-    CreatorCommandLogGroup:
+    JournalProcessorLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-creator
+        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
         RetentionInDays: 14
 
     ImportCommandLogGroup:
@@ -126,11 +109,11 @@ resources:
         RetentionInDays: 14
 
     # CloudWatch Alarms
-    CreatorCommandErrorAlarm:
+    JournalProcessorErrorAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:
-        AlarmName: ${self:service}-${self:provider.stage}-creator-errors
-        AlarmDescription: "CreatorCommand Lambda errors"
+        AlarmName: ${self:service}-${self:provider.stage}-processor-errors
+        AlarmDescription: "Journal Processor Lambda errors"
         MetricName: Errors
         Namespace: AWS/Lambda
         Statistic: Sum
@@ -140,32 +123,15 @@ resources:
         ComparisonOperator: GreaterThanThreshold
         Dimensions:
           - Name: FunctionName
-            Value: ${self:service}-${self:provider.stage}-creator
-        TreatMissingData: notBreaching
-
-    ImportCommandErrorAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${self:provider.stage}-importer-errors
-        AlarmDescription: "ImportCommand Lambda errors"
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 5
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: FunctionName
-            Value: ${self:service}-${self:provider.stage}-importer
+            Value: ${self:service}-${self:provider.stage}-processor
         TreatMissingData: notBreaching
 
   Outputs:
-    CreatorCommandArn:
-      Description: "CreatorCommand Lambda Function ARN"
-      Value: !GetAtt CreatorCommandLambdaFunction.Arn
+    JournalProcessorArn:
+      Description: "Journal Processor Lambda Function ARN"
+      Value: !GetAtt JournalProcessorLambdaFunction.Arn
       Export:
-        Name: ${self:service}-${self:provider.stage}-creator-arn
+        Name: ${self:service}-${self:provider.stage}-processor-arn
 
     ImportCommandArn:
       Description: "ImportCommand Lambda Function ARN"
