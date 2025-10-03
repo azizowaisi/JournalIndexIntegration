@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Company entity - matches Symfony AppBundle\Entity\Company
+ * Company entity
  */
 @Entity
 @Table(name = "Company")

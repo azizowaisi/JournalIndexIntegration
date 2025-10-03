@@ -4,13 +4,13 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * IndexJournalSetting entity - matches Symfony AppBundle\Entity\IndexJournalSetting
+ * IndexJournalSetting entity
  */
 @Entity
 @Table(name = "IndexJournalSetting")
 public class IndexJournalSetting {
 
-    // System constants - matches teckiz6
+    // System constants
     public static final String SYSTEM_OJS = "ojs";
     public static final String SYSTEM_OJS_OAI = "ojs-oai";
     public static final String SYSTEM_TECKIZ = "teckiz";

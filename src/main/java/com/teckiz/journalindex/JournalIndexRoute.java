@@ -35,117 +35,213 @@ public class JournalIndexRoute extends RouteBuilder {
             .handled(true)
             .to("direct:handleError");
         
-        // Main route to process website URLs from SQS
-        from("direct:processWebsite")
-            .routeId("processWebsite")
-            .log("=== CAMEL ROUTE STARTED ===")
-            .log("Processing website URL: ${header.websiteUrl} for journal: ${header.journalKey}")
-            .process(exchange -> {
-                logger.info("=== INSIDE CAMEL PROCESSOR ===");
-                logger.info("Headers: {}", exchange.getIn().getHeaders());
-                String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
-                String journalKey = exchange.getIn().getHeader("journalKey", String.class);
-                
-                // Validate URL format
-                if (websiteUrl == null || websiteUrl.trim().isEmpty()) {
-                    throw new IllegalArgumentException("Website URL cannot be empty");
-                }
-                if (journalKey == null || journalKey.trim().isEmpty()) {
-                    throw new IllegalArgumentException("Journal key cannot be empty");
-                }
-                
-                // Ensure URL has proper format
-                if (!websiteUrl.startsWith("http://") && !websiteUrl.startsWith("https://")) {
-                    websiteUrl = "https://" + websiteUrl;
-                }
-                
-                exchange.getIn().setHeader("websiteUrl", websiteUrl);
-                exchange.getIn().setHeader("journalKey", journalKey);
-            })
-            .to("direct:detectSystemType")
-            .to("direct:createImportQueue")
-            .to("direct:harvestData")
-            .log("Successfully processed website URL: ${header.websiteUrl}")
-            .setBody(constant("Successfully processed website URL: ${header.websiteUrl}"));
+                    // Main route to process website URLs from SQS
+                    from("direct:processWebsite")
+                        .routeId("processWebsite")
+                        .log("=== CAMEL ROUTE STARTED ===")
+                        .log("Processing website URL: ${header.websiteUrl} for journal: ${header.journalKey}")
+                        .log("Message ID: ${header.messageId}, Index: ${header.messageIndex}/${header.totalMessages}")
+                        .process(exchange -> {
+                            logger.info("=== INSIDE CAMEL PROCESSOR ===");
+                            logger.info("All Headers: {}", exchange.getIn().getHeaders());
+                            
+                            String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                            String journalKey = exchange.getIn().getHeader("journalKey", String.class);
+                            String messageId = exchange.getIn().getHeader("messageId", String.class);
+                            Integer messageIndex = exchange.getIn().getHeader("messageIndex", Integer.class);
+                            Integer totalMessages = exchange.getIn().getHeader("totalMessages", Integer.class);
+                            
+                            logger.info("Processing message {}/{} - ID: {}", messageIndex, totalMessages, messageId);
+                            logger.info("Original websiteUrl: {}", websiteUrl);
+                            logger.info("Original journalKey: {}", journalKey);
+
+                            // Validate URL format
+                            if (websiteUrl == null || websiteUrl.trim().isEmpty()) {
+                                logger.error("Website URL is null or empty for message: {}", messageId);
+                                throw new IllegalArgumentException("Website URL cannot be empty");
+                            }
+                            if (journalKey == null || journalKey.trim().isEmpty()) {
+                                logger.error("Journal key is null or empty for message: {}", messageId);
+                                throw new IllegalArgumentException("Journal key cannot be empty");
+                            }
+
+                            // Ensure URL has proper format
+                            String originalUrl = websiteUrl;
+                            if (!websiteUrl.startsWith("http://") && !websiteUrl.startsWith("https://")) {
+                                websiteUrl = "https://" + websiteUrl;
+                                logger.info("Added https:// prefix to URL: {} -> {}", originalUrl, websiteUrl);
+                            }
+
+                            exchange.getIn().setHeader("websiteUrl", websiteUrl);
+                            exchange.getIn().setHeader("journalKey", journalKey);
+                            
+                            logger.info("Validation completed - Final websiteUrl: {}", websiteUrl);
+                            logger.info("Validation completed - Final journalKey: {}", journalKey);
+                        })
+                        .log("Validation completed, proceeding to system detection")
+                        .to("direct:detectSystemType")
+                        .log("System detection completed, proceeding to import queue creation")
+                        .to("direct:createImportQueue")
+                        .log("Import queue creation completed, proceeding to data harvesting")
+                        .to("direct:harvestData")
+                        .log("Data harvesting completed successfully")
+                        .log("Successfully processed website URL: ${header.websiteUrl}")
+                        .setBody(constant("Successfully processed website URL: ${header.websiteUrl}"));
         
         // Route to detect system type based on URL
         from("direct:detectSystemType")
             .routeId("detectSystemType")
+            .log("=== SYSTEM TYPE DETECTION STARTED ===")
             .log("Detecting system type for URL: ${header.websiteUrl}")
             .process(exchange -> {
                 String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                String messageId = exchange.getIn().getHeader("messageId", String.class);
+                
+                logger.info("Starting system type detection for message: {}", messageId);
+                logger.info("Analyzing URL: {}", websiteUrl);
+                
                 String systemType = detectSystemType(websiteUrl);
                 exchange.getIn().setHeader("systemType", systemType);
+                
+                logger.info("System type detection completed for message: {}", messageId);
                 logger.info("Detected system type: {} for URL: {}", systemType, websiteUrl);
-            });
+                
+                // Log detection logic details
+                if (websiteUrl != null) {
+                    String url = websiteUrl.toLowerCase();
+                    if (url.contains("doaj.org")) {
+                        logger.info("DOAJ detection: URL contains 'doaj.org'");
+                    } else if (url.contains("teckiz") || url.contains("journal")) {
+                        logger.info("TECKIZ detection: URL contains 'teckiz' or 'journal'");
+                    } else {
+                        logger.info("OJS_OAI detection: Default fallback for journal websites");
+                    }
+                }
+            })
+            .log("=== SYSTEM TYPE DETECTION COMPLETED ===");
         
         // Route to create import queue entry
         from("direct:createImportQueue")
             .routeId("createImportQueue")
+            .log("=== IMPORT QUEUE CREATION STARTED ===")
             .log("Creating import queue entry for system: ${header.systemType}")
             .process(exchange -> {
                 String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
                 String journalKey = exchange.getIn().getHeader("journalKey", String.class);
                 String systemType = exchange.getIn().getHeader("systemType", String.class);
-                
+                String messageId = exchange.getIn().getHeader("messageId", String.class);
+
+                logger.info("Creating import queue entry for message: {}", messageId);
+                logger.info("Parameters - websiteUrl: {}, journalKey: {}, systemType: {}", websiteUrl, journalKey, systemType);
+
                 // Create import queue data
                 String queueData = createImportQueueData(websiteUrl, journalKey, systemType);
+                String format = getFormatForSystemType(systemType);
+                
                 exchange.getIn().setHeader("queueData", queueData);
-                exchange.getIn().setHeader("format", getFormatForSystemType(systemType));
-            });
+                exchange.getIn().setHeader("format", format);
+                
+                logger.info("Import queue data created: {}", queueData);
+                logger.info("Format determined: {}", format);
+                logger.info("Import queue creation completed for message: {}", messageId);
+            })
+            .log("=== IMPORT QUEUE CREATION COMPLETED ===");
         
         // Route to harvest data based on system type
         from("direct:harvestData")
             .routeId("harvestData")
+            .log("=== DATA HARVESTING STARTED ===")
             .log("Harvesting data for system: ${header.systemType}")
+            .process(exchange -> {
+                String systemType = exchange.getIn().getHeader("systemType", String.class);
+                String messageId = exchange.getIn().getHeader("messageId", String.class);
+                logger.info("Starting data harvesting for message: {} with system type: {}", messageId, systemType);
+            })
             .choice()
                 .when(header("systemType").isEqualTo("OJS_OAI"))
+                    .log("Routing to OJS OAI harvesting")
                     .to("direct:harvestOjsOai")
                 .when(header("systemType").isEqualTo("DOAJ"))
+                    .log("Routing to DOAJ harvesting")
                     .to("direct:harvestDoaj")
                 .when(header("systemType").isEqualTo("TECKIZ"))
+                    .log("Routing to TECKIZ harvesting")
                     .to("direct:harvestTeckiz")
                 .otherwise()
-                    .log("Unknown system type: ${header.systemType}")
-                    .throwException(new RuntimeException("Unknown system type: ${header.systemType}"))
-            .end();
+                    .log("ERROR: Unknown system type: ${header.systemType}")
+                    .process(exchange -> {
+                        String systemType = exchange.getIn().getHeader("systemType", String.class);
+                        String messageId = exchange.getIn().getHeader("messageId", String.class);
+                        logger.error("Unknown system type '{}' for message: {}", systemType, messageId);
+                        throw new RuntimeException("Unknown system type: " + systemType);
+                    })
+            .end()
+            .log("=== DATA HARVESTING COMPLETED ===");
         
                     // Route to harvest OJS OAI data - matches Symfony createOjsOaiQueue
                     from("direct:harvestOjsOai")
                         .routeId("harvestOjsOai")
+                        .log("=== OJS OAI HARVESTING STARTED ===")
                         .log("Harvesting OJS OAI data from: ${header.websiteUrl}")
                         .process(exchange -> {
-                            // Clean website URL like Symfony cleanWebsiteUrl method
+                            String messageId = exchange.getIn().getHeader("messageId", String.class);
                             String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
+                            
+                            logger.info("Starting OJS OAI harvesting for message: {}", messageId);
+                            logger.info("Original website URL: {}", websiteUrl);
+                            
+                            // Clean website URL like Symfony cleanWebsiteUrl method
                             String cleanedUrl = cleanWebsiteUrl(websiteUrl);
                             exchange.getIn().setHeader("cleanedUrl", cleanedUrl);
-                            logger.info("Cleaned website URL: {}", cleanedUrl);
+                            
+                            logger.info("URL cleaning completed for message: {}", messageId);
+                            logger.info("Cleaned website URL: {} -> {}", websiteUrl, cleanedUrl);
                         })
                         .process(exchange -> {
-                            // Get Identify URL like Symfony getUrlIdentify
+                            String messageId = exchange.getIn().getHeader("messageId", String.class);
                             String cleanedUrl = exchange.getIn().getHeader("cleanedUrl", String.class);
+                            
+                            // Get Identify URL like Symfony getUrlIdentify
                             String identifyUrl = cleanedUrl + "/oai?verb=Identify";
                             exchange.getIn().setHeader("identifyUrl", identifyUrl);
+                            
+                            logger.info("Identify URL constructed for message: {}", messageId);
                             logger.info("Identify URL: {}", identifyUrl);
                         })
                         .setHeader("CamelHttpMethod", constant("GET"))
                         .setHeader("CamelHttpQuery", constant("verb=Identify"))
+                        .log("Making OAI Identify request to: ${header.identifyUrl}")
                         .to("direct:makeHttpRequest")
                         .choice()
                             .when(header("CamelHttpResponseCode").isEqualTo(200))
-                                .log("OJS OAI Identify successful")
+                                .log("OJS OAI Identify successful - Response code: 200")
                                 .process(exchange -> {
+                                    String messageId = exchange.getIn().getHeader("messageId", String.class);
                                     String response = exchange.getIn().getBody(String.class);
+                                    
+                                    logger.info("OAI Identify response received for message: {}", messageId);
+                                    logger.info("Response length: {} characters", response != null ? response.length() : 0);
+                                    logger.info("Response preview: {}", response != null ? response.substring(0, Math.min(200, response.length())) + "..." : "null");
+                                    
                                     exchange.getIn().setHeader("identifyData", response);
                                     
                                     // Save identify response to import queue
+                                    logger.info("Saving OAI Identify response to import queue for message: {}", messageId);
                                     saveToImportQueue(exchange, "OJS_OAI_IDENTIFY", response);
+                                    logger.info("OAI Identify response saved to import queue for message: {}", messageId);
                                 })
+                                .log("Proceeding to OJS records harvesting")
                                 .to("direct:harvestOjsRecords")
                             .otherwise()
-                                .log("Failed to get OJS OAI Identify. Response code: ${header.CamelHttpResponseCode}")
-                                .throwException(new RuntimeException("OJS OAI Identify failed"))
-                        .end();
+                                .log("ERROR: Failed to get OJS OAI Identify. Response code: ${header.CamelHttpResponseCode}")
+                                .process(exchange -> {
+                                    String messageId = exchange.getIn().getHeader("messageId", String.class);
+                                    Integer responseCode = exchange.getIn().getHeader("CamelHttpResponseCode", Integer.class);
+                                    logger.error("OAI Identify failed for message: {} with response code: {}", messageId, responseCode);
+                                    throw new RuntimeException("OJS OAI Identify failed with response code: " + responseCode);
+                                })
+                        .end()
+                        .log("=== OJS OAI IDENTIFY COMPLETED ===");
         
         // Route to harvest OJS records - matches Symfony OAI harvesting with pagination loop
         from("direct:harvestOjsRecords")

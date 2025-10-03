@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * IndexJournalArticle entity - matches Symfony AppBundle\Entity\IndexJournalArticle
+ * IndexJournalArticle entity
  */
 @Entity
 @Table(name = "IndexJournalArticle", indexes = {
