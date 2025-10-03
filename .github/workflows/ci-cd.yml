@@ -45,7 +45,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           # Database Configuration
           DB_URL: ${{ secrets.DB_URL }}
-          DB_NAME: journal_index_prod
+          DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           # AWS Services Configuration
