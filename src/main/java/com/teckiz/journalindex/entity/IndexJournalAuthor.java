@@ -10,8 +10,8 @@ import javax.persistence.*;
  * IndexJournalAuthor entity representing journal article authors
  */
 @Entity
-@Table(name = "indexJournalAuthor", indexes = {
-    @Index(name = "idx_author_name", columnList = "name")
+@Table(name = "IndexJournalAuthor", indexes = {
+    @Index(name = "indexed_article_author_name_index", columnList = "name")
 })
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalAuthor {

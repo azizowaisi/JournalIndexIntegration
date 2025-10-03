@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
  * IndexImportQueue entity - matches Symfony AppBundle\Entity\IndexImportQueue
  */
 @Entity
-@Table(name = "index_import_queue")
+@Table(name = "IndexImportQueue")
 public class IndexImportQueue {
     
     public static final String OJS_OAI_IDENTIFY = "OJS_OAI_IDENTIFY";

@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
  * IndexJournal entity - matches Symfony AppBundle\Entity\IndexJournal
  */
 @Entity
-@Table(name = "index_journal")
+@Table(name = "IndexJournal")
 public class IndexJournal {
     
     @Id

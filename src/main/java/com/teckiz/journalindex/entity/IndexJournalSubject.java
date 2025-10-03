@@ -13,8 +13,8 @@ import java.util.List;
  * IndexJournalSubject entity representing journal subjects/categories
  */
 @Entity
-@Table(name = "indexJournalSubject", indexes = {
-    @Index(name = "idx_subject_key", columnList = "subject_key, name")
+@Table(name = "IndexJournalSubject", indexes = {
+    @Index(name = "index_journal_subject_key_index", columnList = "subject_key, name")
 })
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexJournalSubject {

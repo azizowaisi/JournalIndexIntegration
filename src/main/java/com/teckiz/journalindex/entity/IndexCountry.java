@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * IndexCountry entity representing countries in the indexing system
  */
 @Entity
-@Table(name = "indexCountry")
+@Table(name = "IndexCountry")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class IndexCountry {
     
