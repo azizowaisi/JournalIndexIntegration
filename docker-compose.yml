@@ -22,7 +22,9 @@ services:
     depends_on:
       - mysql
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/journal_index?useSSL=false&serverTimezone=UTC
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: journal_index
       DB_USERNAME: ${DB_USERNAME:-journal_user}
       DB_PASSWORD: ${DB_PASSWORD:-journal_pass}
       AWS_REGION: ${AWS_REGION:-us-east-1}
