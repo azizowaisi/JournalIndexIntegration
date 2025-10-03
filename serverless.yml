@@ -87,7 +87,7 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: journal-index-queue-prod
-        VisibilityTimeoutSeconds: 300
+        VisibilityTimeoutSeconds: 5400 # 90 minutes (6x Lambda timeout)
         MessageRetentionPeriod: 1209600 # 14 days
         ReceiveMessageWaitTimeSeconds: 20 # Long polling
         Tags:
