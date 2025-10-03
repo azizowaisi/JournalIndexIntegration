@@ -123,7 +123,7 @@ public class Company {
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<IndexRelatedMedia> relatedMedia = new ArrayList<>();
 
-    @OneToMany(mappedBy = "subCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "masterCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Company> subCompanies = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
