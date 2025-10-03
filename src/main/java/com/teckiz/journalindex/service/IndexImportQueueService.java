@@ -23,9 +23,9 @@ public class IndexImportQueueService {
      * Add OJS OAI XML queue entry - matches Symfony addOJSXMLQueue method
      */
     @Transactional
-    public void addOJSXMLQueue(Long indexJournalId, String systemType, String xmlData) {
-        IndexImportQueue queue = new IndexImportQueue(indexJournalId, systemType, xmlData);
-        queue.setStatus("pending");
+    public void addOJSXMLQueue(String journalKey, String systemType, String xmlData) {
+        IndexImportQueue queue = new IndexImportQueue(journalKey, systemType, xmlData);
+        queue.setFormat(IndexImportQueue.XML_FORMAT);
         indexImportQueueRepository.save(queue);
     }
     
@@ -33,9 +33,9 @@ public class IndexImportQueueService {
      * Add Teckiz queue entry - matches Symfony addTeckizQueue method
      */
     @Transactional
-    public void addTeckizQueue(Long indexJournalId, String jsonData) {
-        IndexImportQueue queue = new IndexImportQueue(indexJournalId, IndexImportQueue.TECKIZ, jsonData);
-        queue.setStatus("pending");
+    public void addTeckizQueue(String journalKey, String jsonData) {
+        IndexImportQueue queue = new IndexImportQueue(journalKey, IndexImportQueue.TECKIZ, jsonData);
+        queue.setFormat(IndexImportQueue.JSON_FORMAT);
         indexImportQueueRepository.save(queue);
     }
     
@@ -43,9 +43,9 @@ public class IndexImportQueueService {
      * Add DOAJ queue entry
      */
     @Transactional
-    public void addDOAJQueue(Long indexJournalId, String jsonData) {
-        IndexImportQueue queue = new IndexImportQueue(indexJournalId, IndexImportQueue.DOAJ, jsonData);
-        queue.setStatus("pending");
+    public void addDOAJQueue(String journalKey, String jsonData) {
+        IndexImportQueue queue = new IndexImportQueue(journalKey, IndexImportQueue.DOAJ_TYPE_XML, jsonData);
+        queue.setFormat(IndexImportQueue.XML_FORMAT);
         indexImportQueueRepository.save(queue);
     }
     
@@ -53,8 +53,8 @@ public class IndexImportQueueService {
      * Remove old queue entries for a journal - matches Symfony removeOldQueue method
      */
     @Transactional
-    public void removeOldQueue(Long indexJournalId) {
-        List<IndexImportQueue> oldQueues = indexImportQueueRepository.findByIndexJournalIdOrderByCreatedAtDesc(indexJournalId);
+    public void removeOldQueue(String journalKey) {
+        List<IndexImportQueue> oldQueues = indexImportQueueRepository.findByJournalKeyOrderByCreatedAtDesc(journalKey);
         indexImportQueueRepository.deleteAll(oldQueues);
     }
     
@@ -62,7 +62,7 @@ public class IndexImportQueueService {
      * Get all pending queue entries
      */
     public List<IndexImportQueue> getPendingQueues() {
-        return indexImportQueueRepository.findByStatusOrderByCreatedAtAsc("pending");
+        return indexImportQueueRepository.findByIndexedFalseOrderByCreatedAtAsc();
     }
     
     /**
@@ -72,8 +72,8 @@ public class IndexImportQueueService {
     public void markAsProcessed(Long queueId) {
         IndexImportQueue queue = indexImportQueueRepository.findById(queueId).orElse(null);
         if (queue != null) {
-            queue.setStatus("processed");
-            queue.setProcessedAt(LocalDateTime.now());
+            queue.setIndexed(true);
+            queue.setError(false);
             queue.setUpdatedAt(LocalDateTime.now());
             indexImportQueueRepository.save(queue);
         }
@@ -86,9 +86,8 @@ public class IndexImportQueueService {
     public void markAsFailed(Long queueId, String errorMessage) {
         IndexImportQueue queue = indexImportQueueRepository.findById(queueId).orElse(null);
         if (queue != null) {
-            queue.setStatus("failed");
-            queue.setErrorMessage(errorMessage);
-            queue.setRetryCount(queue.getRetryCount() + 1);
+            queue.setError(true);
+            queue.setMessage(errorMessage);
             queue.setUpdatedAt(LocalDateTime.now());
             indexImportQueueRepository.save(queue);
         }

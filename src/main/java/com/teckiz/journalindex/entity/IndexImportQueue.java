@@ -9,189 +9,206 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "IndexImportQueue")
 public class IndexImportQueue {
-    
-    public static final String OJS_OAI_IDENTIFY = "OJS_OAI_IDENTIFY";
-    public static final String OJS_OAI_RECORD_LIST = "OJS_OAI_RECORD_LIST";
-    public static final String DOAJ = "DOAJ";
-    public static final String TECKIZ = "TECKIZ";
-    
+
+    // Constants - matches teckiz6 exactly
+    public static final String OJS_OAI_IDENTIFY = "ojs-identify";
+    public static final String OJS_OAI_RECORD_LIST = "ojs-record-list";
+    public static final String DOAJ_TYPE_XML = "doaj";
+    public static final String OJS_XML = "ojs";
+    public static final String TECKIZ = "teckiz";
+    public static final String XML_FORMAT = "xml";
+    public static final String JSON_FORMAT = "json";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
-    
-    @Column(name = "index_journal_id")
-    private Long indexJournalId;
-    
-    @Column(name = "system_type")
-    private String systemType;
-    
-    @Column(name = "data", columnDefinition = "LONGTEXT")
-    private String data;
-    
-    @Column(name = "status")
-    private String status = "pending";
-    
+
+    @Column(name = "queue_key", length = 20)
+    private String queueKey;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
-    @Column(name = "processed_at")
-    private LocalDateTime processedAt;
-    
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    private String errorMessage;
-    
-    @Column(name = "retry_count")
-    private Integer retryCount = 0;
-    
-    @Column(name = "indexed")
+
+    @Column(name = "data", columnDefinition = "TEXT")
+    private String data;
+
+    @Column(name = "format", length = 50)
+    private String format = XML_FORMAT;
+
+    @Column(name = "total_records", length = 10)
+    private String totalRecords;
+
+    @Column(name = "indexed_records", length = 10)
+    private String indexedRecords = "0";
+
+    @Column(name = "is_indexed")
     private Boolean indexed = false;
-    
-    @Column(name = "error")
+
+    @Column(name = "is_error")
     private Boolean error = false;
-    
-    @Column(name = "message", columnDefinition = "TEXT")
+
+    @Column(name = "message", length = 255)
     private String message;
-    
-    @Column(name = "total_records")
-    private Integer totalRecords = 0;
-    
-    @Column(name = "indexed_records")
-    private Integer indexedRecords = 0;
-    
+
+    @Column(name = "system_type", length = 50)
+    private String systemType;
+
+    @Column(name = "company_key", length = 50)
+    private String companyKey;
+
+    @Column(name = "journal_key", length = 50)
+    private String journalKey;
+
     // Constructors
     public IndexImportQueue() {
+        this.queueKey = generateEntityKey();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
-    
-    public IndexImportQueue(Long indexJournalId, String systemType, String data) {
+
+    public IndexImportQueue(String journalKey, String systemType, String data) {
         this();
-        this.indexJournalId = indexJournalId;
+        this.journalKey = journalKey;
         this.systemType = systemType;
         this.data = data;
     }
-    
+
+    // Utility method to generate entity key
+    private String generateEntityKey() {
+        return "QUEUE_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
+    }
+
     // Getters and Setters
     public Long getId() {
         return id;
     }
-    
+
     public void setId(Long id) {
         this.id = id;
     }
-    
-    public Long getIndexJournalId() {
-        return indexJournalId;
+
+    public String getQueueKey() {
+        return queueKey;
     }
-    
-    public void setIndexJournalId(Long indexJournalId) {
-        this.indexJournalId = indexJournalId;
+
+    public void setQueueKey(String queueKey) {
+        this.queueKey = queueKey;
     }
-    
-    public String getSystemType() {
-        return systemType;
-    }
-    
-    public void setSystemType(String systemType) {
-        this.systemType = systemType;
-    }
-    
-    public String getData() {
-        return data;
-    }
-    
-    public void setData(String data) {
-        this.data = data;
-    }
-    
-    public String getStatus() {
-        return status;
-    }
-    
-    public void setStatus(String status) {
-        this.status = status;
-    }
-    
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
-    
+
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
-    
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
-    
+
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
-    
-    public LocalDateTime getProcessedAt() {
-        return processedAt;
+
+    public String getData() {
+        return data;
     }
-    
-    public void setProcessedAt(LocalDateTime processedAt) {
-        this.processedAt = processedAt;
+
+    public void setData(String data) {
+        this.data = data;
     }
-    
-    public String getErrorMessage() {
-        return errorMessage;
+
+    public String getFormat() {
+        return format;
     }
-    
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
+
+    public void setFormat(String format) {
+        this.format = format;
     }
-    
-    public Integer getRetryCount() {
-        return retryCount;
+
+    public String getTotalRecords() {
+        return totalRecords;
     }
-    
-    public void setRetryCount(Integer retryCount) {
-        this.retryCount = retryCount;
+
+    public void setTotalRecords(String totalRecords) {
+        this.totalRecords = totalRecords;
     }
-    
+
+    public String getIndexedRecords() {
+        return indexedRecords;
+    }
+
+    public void setIndexedRecords(String indexedRecords) {
+        this.indexedRecords = indexedRecords;
+    }
+
     public Boolean getIndexed() {
         return indexed;
     }
-    
+
     public void setIndexed(Boolean indexed) {
         this.indexed = indexed;
     }
-    
+
     public Boolean getError() {
         return error;
     }
-    
+
     public void setError(Boolean error) {
         this.error = error;
     }
-    
+
     public String getMessage() {
         return message;
     }
-    
+
     public void setMessage(String message) {
         this.message = message;
     }
-    
-    public Integer getTotalRecords() {
-        return totalRecords;
+
+    public String getSystemType() {
+        return systemType;
     }
-    
-    public void setTotalRecords(Integer totalRecords) {
-        this.totalRecords = totalRecords;
+
+    public void setSystemType(String systemType) {
+        this.systemType = systemType;
     }
-    
-    public Integer getIndexedRecords() {
-        return indexedRecords;
+
+    public String getCompanyKey() {
+        return companyKey;
     }
-    
-    public void setIndexedRecords(Integer indexedRecords) {
-        this.indexedRecords = indexedRecords;
+
+    public void setCompanyKey(String companyKey) {
+        this.companyKey = companyKey;
+    }
+
+    public String getJournalKey() {
+        return journalKey;
+    }
+
+    public void setJournalKey(String journalKey) {
+        this.journalKey = journalKey;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @Override
+    public String toString() {
+        return "IndexImportQueue{" +
+                "id=" + id +
+                ", queueKey='" + queueKey + '\'' +
+                ", systemType='" + systemType + '\'' +
+                ", journalKey='" + journalKey + '\'' +
+                ", indexed=" + indexed +
+                ", error=" + error +
+                '}';
     }
 }

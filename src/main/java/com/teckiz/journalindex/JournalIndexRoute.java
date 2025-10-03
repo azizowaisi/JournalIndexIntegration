@@ -362,29 +362,26 @@ public class JournalIndexRoute extends RouteBuilder {
         try {
             String websiteUrl = exchange.getIn().getHeader("websiteUrl", String.class);
             String journalKey = exchange.getIn().getHeader("journalKey", String.class);
-            
-            // Extract indexJournalId from journalKey (assuming journalKey is the ID)
-            Long indexJournalId = Long.parseLong(journalKey);
-            
-            logger.info("Saving to IndexImportQueue - Journal ID: {}, System: {}, Data Length: {}", 
-                       indexJournalId, systemType, data.length());
-            
+
+            logger.info("Saving to IndexImportQueue - Journal Key: {}, System: {}, Data Length: {}",
+                       journalKey, systemType, data.length());
+
             // Save to database based on system type
             switch (systemType) {
                 case "OJS_OAI_IDENTIFY":
                 case "OJS_OAI_RECORD_LIST":
-                    indexImportQueueService.addOJSXMLQueue(indexJournalId, systemType, data);
+                    indexImportQueueService.addOJSXMLQueue(journalKey, systemType, data);
                     break;
                 case "DOAJ":
-                    indexImportQueueService.addDOAJQueue(indexJournalId, data);
+                    indexImportQueueService.addDOAJQueue(journalKey, data);
                     break;
                 case "TECKIZ":
-                    indexImportQueueService.addTeckizQueue(indexJournalId, data);
+                    indexImportQueueService.addTeckizQueue(journalKey, data);
                     break;
                 default:
                     logger.warn("Unknown system type for import queue: {}", systemType);
             }
-            
+
             logger.info("Successfully saved to IndexImportQueue for system: {}", systemType);
 
         } catch (Exception e) {
