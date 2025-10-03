@@ -2,7 +2,7 @@ name: CI/CD - Journal Index Integration
 
 on:
   push:
-    branches: [master]   # Deploy only when master branch is updated
+    branches: [master, integration-work-flow]   # Deploy on master and integration-work-flow branches
 
 jobs:
   build-deploy:
