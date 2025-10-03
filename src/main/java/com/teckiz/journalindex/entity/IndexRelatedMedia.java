@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * IndexRelatedMedia entity - matches Symfony AppBundle\Entity\IndexRelatedMedia
+ * IndexRelatedMedia entity
  */
 @Entity
 @Table(name = "IndexRelatedMedia", indexes = {
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 })
 public class IndexRelatedMedia {
 
-    // Media type constants - matches teckiz6
+    // Media type constants
     public static final String JOURNAL = "journal";
     public static final String ARTICLE = "article";
     public static final String VOLUME = "volume";

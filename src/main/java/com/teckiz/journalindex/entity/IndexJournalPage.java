@@ -3,13 +3,13 @@ package com.teckiz.journalindex.entity;
 import jakarta.persistence.*;
 
 /**
- * IndexJournalPage entity - matches Symfony AppBundle\Entity\IndexJournalPage
+ * IndexJournalPage entity
  */
 @Entity
 @Table(name = "IndexJournalPage")
 public class IndexJournalPage {
 
-    // Page type constants - matches teckiz6
+    // Page type constants
     public static final String PAGE_EDITORIAL_BOARD = "Editorial-board";
     public static final String PAGE_ADVISORY_BOARD = "Advisory-board";
     public static final String PAGE_AUTHOR_GUIDELINE = "Author-guideline";

@@ -4,13 +4,13 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * IndexImportQueue entity - matches Symfony AppBundle\Entity\IndexImportQueue
+ * IndexImportQueue entity
  */
 @Entity
 @Table(name = "IndexImportQueue")
 public class IndexImportQueue {
 
-    // Constants - matches teckiz6 exactly
+    // Constants
     public static final String OJS_OAI_IDENTIFY = "ojs-identify";
     public static final String OJS_OAI_RECORD_LIST = "ojs-record-list";
     public static final String DOAJ_TYPE_XML = "doaj";

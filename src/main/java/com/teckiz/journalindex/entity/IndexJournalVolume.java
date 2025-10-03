@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * IndexJournalVolume entity - matches Symfony AppBundle\Entity\IndexJournalVolume
+ * IndexJournalVolume entity
  */
 @Entity
 @Table(name = "IndexJournalVolume", indexes = {

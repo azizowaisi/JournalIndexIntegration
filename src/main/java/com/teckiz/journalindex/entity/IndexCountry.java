@@ -3,7 +3,7 @@ package com.teckiz.journalindex.entity;
 import jakarta.persistence.*;
 
 /**
- * IndexCountry entity - matches Symfony AppBundle\Entity\IndexCountry
+ * IndexCountry entity
  */
 @Entity
 @Table(name = "IndexCountry")

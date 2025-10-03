@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * IndexJournal entity - matches Symfony AppBundle\Entity\IndexJournal
+ * IndexJournal entity
  */
 @Entity
 @Table(name = "IndexJournal", indexes = {
@@ -15,7 +15,7 @@ import java.util.List;
 })
 public class IndexJournal {
     
-    // Status constants - matches Symfony
+    // Status constants
     public static final String RJ_APPROVED = "approved";
     public static final String RJ_RECEIVED = "received";
     public static final String RJ_PENDING = "pending";
@@ -83,7 +83,7 @@ public class IndexJournal {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    // Relationships - matches Symfony exactly
+    // Relationships
     @OneToOne(mappedBy = "journal", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private IndexJournalSetting setting;
     
