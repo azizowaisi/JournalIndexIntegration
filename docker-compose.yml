@@ -23,7 +23,6 @@ services:
       - mysql
     environment:
       DB_HOST: mysql
-      DB_PORT: 3306
       DB_NAME: journal_index
       DB_USERNAME: ${DB_USERNAME:-journal_user}
       DB_PASSWORD: ${DB_PASSWORD:-journal_pass}

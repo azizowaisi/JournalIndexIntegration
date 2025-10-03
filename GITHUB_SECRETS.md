@@ -25,20 +25,16 @@ AWS_REGION
   - `AWS_SECRET_ACCESS_KEY`: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
   - `AWS_REGION`: `us-east-1`
 
-### 3. Database Configuration
+### 3. Database Configuration (EXISTING)
 ```
-DB_HOST
-DB_PORT
-DB_NAME
-DB_USERNAME
-DB_PASSWORD
+DB_URL ✅ (Already configured)
+DB_USERNAME ✅ (Already configured)
+DB_PASSWORD ✅ (Already configured)
 ```
 - **Description**: MySQL database connection details
-- **How to get**: From your RDS instance or MySQL server
+- **Status**: These secrets are already configured in your GitHub repository
 - **Examples**:
-  - `DB_HOST`: `journal-index-prod.cluster-abc.us-east-1.rds.amazonaws.com`
-  - `DB_PORT`: `3306`
-  - `DB_NAME`: `journal_index_prod`
+  - `DB_URL`: `jdbc:mysql://journal-index-prod.cluster-abc.us-east-1.rds.amazonaws.com:3306/journal_index_prod?useSSL=true&serverTimezone=UTC&requireSSL=true&verifyServerCertificate=true`
   - `DB_USERNAME`: `prod_user`
   - `DB_PASSWORD`: `your_secure_password`
 
@@ -68,9 +64,7 @@ S3_BUCKET_NAME
 
 ### Development Environment
 ```bash
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=journal_index_dev
+DB_URL=jdbc:mysql://localhost:3306/journal_index_dev?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
 DB_USERNAME=root
 DB_PASSWORD=dev_password
 AWS_REGION=us-east-1
@@ -81,9 +75,7 @@ S3_BUCKET_NAME=journal-index-xml-files-dev
 
 ### Staging Environment
 ```bash
-DB_HOST=journal-index-staging.cluster-abc.us-east-1.rds.amazonaws.com
-DB_PORT=3306
-DB_NAME=journal_index_staging
+DB_URL=jdbc:mysql://journal-index-staging.cluster-abc.us-east-1.rds.amazonaws.com:3306/journal_index_staging?useSSL=true&serverTimezone=UTC&requireSSL=true&verifyServerCertificate=true
 DB_USERNAME=staging_user
 DB_PASSWORD=staging_password
 AWS_REGION=us-east-1
@@ -94,9 +86,7 @@ S3_BUCKET_NAME=journal-index-xml-files-staging
 
 ### Production Environment
 ```bash
-DB_HOST=journal-index-prod.cluster-abc.us-east-1.rds.amazonaws.com
-DB_PORT=3306
-DB_NAME=journal_index_prod
+DB_URL=jdbc:mysql://journal-index-prod.cluster-abc.us-east-1.rds.amazonaws.com:3306/journal_index_prod?useSSL=true&serverTimezone=UTC&requireSSL=true&verifyServerCertificate=true
 DB_USERNAME=prod_user
 DB_PASSWORD=prod_secure_password
 AWS_REGION=us-east-1
