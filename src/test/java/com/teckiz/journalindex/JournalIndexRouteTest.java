@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.Map;
 
 /**
  * Test class for JournalIndexRoute
@@ -39,7 +40,8 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         String testUrl = "https://example.com/oai";
         
         // Send message to the route with required headers
-        String result = producerTemplate.requestBodyAndHeader("direct:processWebsite", testUrl, "journalKey", "TEST_JOURNAL", String.class);
+        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", testUrl, 
+            Map.of("websiteUrl", testUrl, "journalKey", "TEST_JOURNAL"), String.class);
         
         // Verify the result
         assertNotNull(result);
@@ -52,7 +54,8 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         String emptyUrl = "";
         
         try {
-            producerTemplate.requestBodyAndHeader("direct:processWebsite", emptyUrl, "journalKey", "TEST_JOURNAL", String.class);
+            producerTemplate.requestBodyAndHeaders("direct:processWebsite", emptyUrl, 
+                Map.of("websiteUrl", emptyUrl, "journalKey", "TEST_JOURNAL"), String.class);
             fail("Should have thrown an exception for empty URL");
         } catch (Exception e) {
             // Check if the exception message contains our validation error
@@ -70,7 +73,8 @@ public class JournalIndexRouteTest extends CamelTestSupport {
         String urlWithoutProtocol = "example.com/oai";
         
         // This should be normalized to include https://
-        String result = producerTemplate.requestBodyAndHeader("direct:processWebsite", urlWithoutProtocol, "journalKey", "TEST_JOURNAL", String.class);
+        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", urlWithoutProtocol, 
+            Map.of("websiteUrl", urlWithoutProtocol, "journalKey", "TEST_JOURNAL"), String.class);
         
         assertNotNull(result);
         assertTrue(result.contains("Successfully processed"));
