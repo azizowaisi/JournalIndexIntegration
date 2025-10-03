@@ -188,8 +188,15 @@ nano .env
 - **Production**: `env.production` - Production environment with optimized settings
 
 ```bash
-# Database Configuration (Development)
-DB_URL=jdbc:mysql://localhost:3306/journal_index_dev?useSSL=false&serverTimezone=UTC
+# Database Configuration (Development) - Recommended approach
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=journal_index_dev
+DB_USERNAME=root
+DB_PASSWORD=your_password
+
+# Alternative: Complete URL (will override individual components)
+# DB_URL=jdbc:mysql://localhost:3306/journal_index_dev?useSSL=false&serverTimezone=UTC
 DB_USERNAME=root
 DB_PASSWORD=dev_password_123
 

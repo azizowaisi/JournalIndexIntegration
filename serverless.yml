@@ -10,10 +10,15 @@ provider:
   timeout: 300
   memorySize: 512
   environment:
+    # Database Configuration
     DB_URL: ${env:DB_URL}
+    DB_NAME: ${env:DB_NAME}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
+    # AWS Configuration
+    AWS_REGION: ${env:AWS_REGION}
     SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
+    SQS_QUEUE_ARN: ${env:SQS_QUEUE_ARN}
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
   iam:
     role:
