@@ -83,6 +83,7 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                 
                 try {
                     // Parse the message body to extract URL and journal_key
+                    @SuppressWarnings("unchecked")
                     Map<String, Object> messageData = objectMapper.readValue(messageBody, Map.class);
                     String websiteUrl = (String) messageData.get("url");
                     String journalKey = (String) messageData.get("journal_key");
