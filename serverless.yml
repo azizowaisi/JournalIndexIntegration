@@ -102,12 +102,6 @@ resources:
         LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-processor
         RetentionInDays: 14
 
-    ImportCommandLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: /aws/lambda/${self:service}-${self:provider.stage}-importer
-        RetentionInDays: 14
-
     # CloudWatch Alarms
     JournalProcessorErrorAlarm:
       Type: AWS::CloudWatch::Alarm
@@ -132,12 +126,6 @@ resources:
       Value: !GetAtt JournalProcessorLambdaFunction.Arn
       Export:
         Name: ${self:service}-${self:provider.stage}-processor-arn
-
-    ImportCommandArn:
-      Description: "ImportCommand Lambda Function ARN"
-      Value: !GetAtt ImportCommandLambdaFunction.Arn
-      Export:
-        Name: ${self:service}-${self:provider.stage}-importer-arn
 
     SQSQueueUrl:
       Description: "SQS Queue URL"
@@ -166,7 +154,6 @@ custom:
   # Warmup configuration (optional)
   warmup:
     default: false
-    creatorCommand: false
-    importCommand: false
+    journalProcessor: false
 
 # Stack tags (moved to provider level)
