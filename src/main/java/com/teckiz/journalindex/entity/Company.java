@@ -123,13 +123,12 @@ public class Company {
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<IndexRelatedMedia> relatedMedia = new ArrayList<>();
 
-    // Self-referencing relationship removed to avoid Hibernate mapping issues
-    // @OneToMany(mappedBy = "masterCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    // private List<Company> subCompanies = new ArrayList<>();
+    @OneToMany(mappedBy = "masterCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Company> subCompanies = new ArrayList<>();
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "master_company_id")
-    // private Company masterCompany;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "master_company_id")
+    private Company masterCompany;
 
     // Constructors
     public Company() {
@@ -431,22 +430,21 @@ public class Company {
         this.relatedMedia = relatedMedia;
     }
 
-    // Self-referencing relationship methods removed
-    // public List<Company> getSubCompanies() {
-    //     return subCompanies;
-    // }
+    public List<Company> getSubCompanies() {
+        return subCompanies;
+    }
 
-    // public void setSubCompanies(List<Company> subCompanies) {
-    //     this.subCompanies = subCompanies;
-    // }
+    public void setSubCompanies(List<Company> subCompanies) {
+        this.subCompanies = subCompanies;
+    }
 
-    // public Company getMasterCompany() {
-    //     return masterCompany;
-    // }
+    public Company getMasterCompany() {
+        return masterCompany;
+    }
 
-    // public void setMasterCompany(Company masterCompany) {
-    //     this.masterCompany = masterCompany;
-    // }
+    public void setMasterCompany(Company masterCompany) {
+        this.masterCompany = masterCompany;
+    }
 
     @Override
     public String toString() {
