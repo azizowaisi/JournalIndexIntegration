@@ -123,12 +123,16 @@ public class Company {
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<IndexRelatedMedia> relatedMedia = new ArrayList<>();
 
+    // Company hierarchy relationships
     @OneToMany(mappedBy = "masterCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Company> subCompanies = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "master_company_id")
+    @JoinColumn(name = "master_company_id", referencedColumnName = "id")
     private Company masterCompany;
+
+    // Note: CompanyRoleMapper and CompanyModuleMapper relationships are not included
+    // as they are not part of the journal index integration domain
 
     // Constructors
     public Company() {
