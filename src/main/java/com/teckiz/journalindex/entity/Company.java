@@ -2,8 +2,6 @@ package com.teckiz.journalindex.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Company entity
@@ -94,41 +92,6 @@ public class Company {
 
     @Column(name = "is_master")
     private Boolean master;
-
-    // Relationships
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournal> journals = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalSetting> journalSettings = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalSubject> journalSubjects = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexLanguage> languages = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexCountry> countries = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalArticle> articles = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalVolume> volumes = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexJournalPage> pages = new ArrayList<>();
-
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<IndexRelatedMedia> relatedMedia = new ArrayList<>();
-
-    @OneToMany(mappedBy = "subCompany", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Company> subCompanies = new ArrayList<>();
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "master_company_id")
-    private Company masterCompany;
 
     // Constructors
     public Company() {
@@ -357,94 +320,8 @@ public class Company {
         this.master = master;
     }
 
-    // Relationship getters and setters
-    public List<IndexJournal> getJournals() {
-        return journals;
-    }
-
-    public void setJournals(List<IndexJournal> journals) {
-        this.journals = journals;
-    }
-
-    public List<IndexJournalSetting> getJournalSettings() {
-        return journalSettings;
-    }
-
-    public void setJournalSettings(List<IndexJournalSetting> journalSettings) {
-        this.journalSettings = journalSettings;
-    }
-
-    public List<IndexJournalSubject> getJournalSubjects() {
-        return journalSubjects;
-    }
-
-    public void setJournalSubjects(List<IndexJournalSubject> journalSubjects) {
-        this.journalSubjects = journalSubjects;
-    }
-
-    public List<IndexLanguage> getLanguages() {
-        return languages;
-    }
-
-    public void setLanguages(List<IndexLanguage> languages) {
-        this.languages = languages;
-    }
-
-    public List<IndexCountry> getCountries() {
-        return countries;
-    }
-
-    public void setCountries(List<IndexCountry> countries) {
-        this.countries = countries;
-    }
-
-    public List<IndexJournalArticle> getArticles() {
-        return articles;
-    }
-
-    public void setArticles(List<IndexJournalArticle> articles) {
-        this.articles = articles;
-    }
-
-    public List<IndexJournalVolume> getVolumes() {
-        return volumes;
-    }
-
-    public void setVolumes(List<IndexJournalVolume> volumes) {
-        this.volumes = volumes;
-    }
-
-    public List<IndexJournalPage> getPages() {
-        return pages;
-    }
-
-    public void setPages(List<IndexJournalPage> pages) {
-        this.pages = pages;
-    }
-
-    public List<IndexRelatedMedia> getRelatedMedia() {
-        return relatedMedia;
-    }
-
-    public void setRelatedMedia(List<IndexRelatedMedia> relatedMedia) {
-        this.relatedMedia = relatedMedia;
-    }
-
-    public List<Company> getSubCompanies() {
-        return subCompanies;
-    }
-
-    public void setSubCompanies(List<Company> subCompanies) {
-        this.subCompanies = subCompanies;
-    }
-
-    public Company getMasterCompany() {
-        return masterCompany;
-    }
-
-    public void setMasterCompany(Company masterCompany) {
-        this.masterCompany = masterCompany;
-    }
+    // Company is a master table - no relationship methods needed
+    // Other entities will reference Company via foreign keys
 
     @Override
     public String toString() {
