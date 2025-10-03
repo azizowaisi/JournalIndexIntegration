@@ -446,6 +446,34 @@ public class Company {
         this.masterCompany = masterCompany;
     }
 
+    // Utility methods for company hierarchy
+    public boolean isMasterCompany() {
+        return this.master != null && this.master;
+    }
+
+    public boolean hasSubCompanies() {
+        return subCompanies != null && !subCompanies.isEmpty();
+    }
+
+    public boolean isSubCompany() {
+        return masterCompany != null;
+    }
+
+    public void addSubCompany(Company subCompany) {
+        if (subCompanies == null) {
+            subCompanies = new ArrayList<>();
+        }
+        subCompanies.add(subCompany);
+        subCompany.setMasterCompany(this);
+    }
+
+    public void removeSubCompany(Company subCompany) {
+        if (subCompanies != null) {
+            subCompanies.remove(subCompany);
+            subCompany.setMasterCompany(null);
+        }
+    }
+
     @Override
     public String toString() {
         return "Company{" +
