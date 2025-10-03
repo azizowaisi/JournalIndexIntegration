@@ -93,7 +93,6 @@ public class Company {
     @Column(name = "is_master")
     private Boolean master;
 
-    
     // Constructors
     public Company() {
         this.companyKey = generateEntityKey();
