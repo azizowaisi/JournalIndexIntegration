@@ -13,7 +13,7 @@ provider:
     DB_URL: ${env:DB_URL}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
-    SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
+    SQS_QUEUE_URL: !Ref JournalIndexQueue
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
   iam:
     role:
@@ -24,7 +24,7 @@ provider:
             - sqs:DeleteMessage
             - sqs:GetQueueAttributes
           Resource:
-            - ${env:SQS_QUEUE_ARN}
+            - !GetAtt JournalIndexQueue.Arn
         - Effect: Allow
           Action:
             - rds:DescribeDBInstances
@@ -67,7 +67,7 @@ functions:
     memorySize: 1024
     events:
       - sqs:
-          arn: ${env:SQS_QUEUE_ARN}
+          arn: !GetAtt JournalIndexQueue.Arn
           batchSize: 1
           functionResponseType: ReportBatchItemFailures
     environment:
