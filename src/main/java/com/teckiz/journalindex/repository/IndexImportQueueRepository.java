@@ -31,4 +31,29 @@ public interface IndexImportQueueRepository extends JpaRepository<IndexImportQue
      * Find all queue entries for a specific journal and system type
      */
     List<IndexImportQueue> findByIndexJournalIdAndSystemTypeOrderByCreatedAtDesc(Long indexJournalId, String systemType);
+    
+    /**
+     * Find all queue entries that are not indexed and have no errors
+     */
+    List<IndexImportQueue> findByIndexedFalseAndErrorFalseOrderByCreatedAtAsc();
+    
+    /**
+     * Count queue entries that are not indexed and have no errors
+     */
+    long countByIndexedFalseAndErrorFalse();
+    
+    /**
+     * Count queue entries that are indexed and have no errors
+     */
+    long countByIndexedTrueAndErrorFalse();
+    
+    /**
+     * Count queue entries that have errors
+     */
+    long countByErrorTrue();
+    
+    /**
+     * Find all queue entries that have errors
+     */
+    List<IndexImportQueue> findByErrorTrue();
 }

@@ -270,7 +270,7 @@ public class JournalIndexRoute extends RouteBuilder {
             .log("Making HTTP request to: ${header.CamelHttpQuery}")
             .setHeader("Accept", constant("*/*"))
             .setHeader("User-Agent", constant("JournalIndexIntegration/1.0"))
-            .to("http4://dummy?httpMethod=GET&throwExceptionOnFailure=false")
+                        .to("http://dummy?httpMethod=GET&throwExceptionOnFailure=false")
             .process(exchange -> {
                 // Get the actual URL from headers
                 String baseUrl = exchange.getIn().getHeader("cleanedUrl", String.class);

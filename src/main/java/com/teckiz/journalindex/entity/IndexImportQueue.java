@@ -46,6 +46,21 @@ public class IndexImportQueue {
     @Column(name = "retry_count")
     private Integer retryCount = 0;
     
+    @Column(name = "indexed")
+    private Boolean indexed = false;
+    
+    @Column(name = "error")
+    private Boolean error = false;
+    
+    @Column(name = "message", columnDefinition = "TEXT")
+    private String message;
+    
+    @Column(name = "total_records")
+    private Integer totalRecords = 0;
+    
+    @Column(name = "indexed_records")
+    private Integer indexedRecords = 0;
+    
     // Constructors
     public IndexImportQueue() {
         this.createdAt = LocalDateTime.now();
@@ -138,5 +153,45 @@ public class IndexImportQueue {
     
     public void setRetryCount(Integer retryCount) {
         this.retryCount = retryCount;
+    }
+    
+    public Boolean getIndexed() {
+        return indexed;
+    }
+    
+    public void setIndexed(Boolean indexed) {
+        this.indexed = indexed;
+    }
+    
+    public Boolean getError() {
+        return error;
+    }
+    
+    public void setError(Boolean error) {
+        this.error = error;
+    }
+    
+    public String getMessage() {
+        return message;
+    }
+    
+    public void setMessage(String message) {
+        this.message = message;
+    }
+    
+    public Integer getTotalRecords() {
+        return totalRecords;
+    }
+    
+    public void setTotalRecords(Integer totalRecords) {
+        this.totalRecords = totalRecords;
+    }
+    
+    public Integer getIndexedRecords() {
+        return indexedRecords;
+    }
+    
+    public void setIndexedRecords(Integer indexedRecords) {
+        this.indexedRecords = indexedRecords;
     }
 }
