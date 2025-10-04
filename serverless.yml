@@ -9,6 +9,12 @@ provider:
   stage: ${opt:stage, 'dev'}
   timeout: 300
   memorySize: 512
+  vpc:
+    securityGroupIds:
+      - ${env:VPC_SECURITY_GROUP_ID}
+    subnetIds:
+      - ${env:VPC_SUBNET_ID_1}
+      - ${env:VPC_SUBNET_ID_2}
   environment:
     # Database Configuration
     DB_URL: jdbc:mysql://${env:DB_URL}/${env:DB_NAME}
@@ -32,6 +38,15 @@ provider:
           Action:
             - rds:DescribeDBInstances
             - rds:DescribeDBClusters
+            - rds:Connect
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:AttachNetworkInterface
+            - ec2:DetachNetworkInterface
           Resource: '*'
         - Effect: Allow
           Action:
