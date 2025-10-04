@@ -123,7 +123,7 @@ resources:
 # Plugins
 plugins:
   - serverless-offline # For local development
-  #- serverless-plugin-warmup # For Lambda warmup (optional)
+  - serverless-offline-sqs # For local SQS simulation
 
 custom:
   # Serverless offline configuration
@@ -132,9 +132,14 @@ custom:
     lambdaPort: 3002
     host: 0.0.0.0
 
-  # Warmup configuration (optional)
-  warmup:
-    default: false
-    journalProcessor: false
+  # SQS Offline configuration
+  serverless-offline-sqs:
+    port: 9324
+    host: 0.0.0.0
+    region: us-east-1
+    accessKeyId: local
+    secretAccessKey: local
+    skipCacheInvalidation: false
+    debug: true
 
 # Stack tags (moved to provider level)

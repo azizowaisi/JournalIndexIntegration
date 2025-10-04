@@ -27,9 +27,10 @@
     "invoke:dev": "serverless invoke --stage dev",
     "invoke:staging": "serverless invoke --stage staging",
     "invoke:prod": "serverless invoke --stage prod",
-    "offline": "serverless offline",
+    "offline": "serverless offline --stage local --env local",
     "offline:dev": "serverless offline --stage dev",
     "offline:staging": "serverless offline --stage staging",
+    "offline:local": "serverless offline --stage local --env local",
     "test": "mvn test",
     "test:dev": "mvn test -Dspring.profiles.active=dev",
     "test:staging": "mvn test -Dspring.profiles.active=staging",
@@ -62,11 +63,10 @@
   "author": "Teckiz",
   "license": "MIT",
   "devDependencies": {
-    "serverless": "^4.0.0",
-    "serverless-offline": "^12.3.0",
-    "serverless-plugin-warmup": "^8.2.1",
-    "serverless-dotenv-plugin": "^6.0.0",
-    "serverless-python-requirements": "^6.0.0"
+    "serverless": "^3.38.0",
+    "serverless-offline": "^6.7.0",
+    "serverless-offline-sqs": "^4.1.1",
+    "serverless-dotenv-plugin": "^6.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
