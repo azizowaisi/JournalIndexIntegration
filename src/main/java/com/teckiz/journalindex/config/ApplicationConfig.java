@@ -23,16 +23,16 @@ import java.util.Properties;
 @EnableTransactionManagement
 public class ApplicationConfig {
 
-    @Value("${spring.datasource.url}")
+    @Value("${spring.datasource.url:jdbc:mysql://localhost:3306/journal_index}")
     private String dataSourceUrl;
 
-    @Value("${spring.datasource.username}")
+    @Value("${spring.datasource.username:root}")
     private String dataSourceUsername;
 
-    @Value("${spring.datasource.password}")
+    @Value("${spring.datasource.password:password}")
     private String dataSourcePassword;
 
-    @Value("${spring.datasource.driver-class-name}")
+    @Value("${spring.datasource.driver-class-name:com.mysql.cj.jdbc.Driver}")
     private String dataSourceDriverClassName;
 
     @Bean
