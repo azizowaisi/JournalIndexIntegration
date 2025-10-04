@@ -37,6 +37,13 @@ public class ApplicationConfig {
 
     @Bean
     public DataSource dataSource() {
+        // Log connection details for debugging (without password)
+        System.out.println("=== Database Connection Debug ===");
+        System.out.println("DB_URL: " + dataSourceUrl);
+        System.out.println("DB_USERNAME: " + dataSourceUsername);
+        System.out.println("DB_DRIVER: " + dataSourceDriverClassName);
+        System.out.println("================================");
+        
         org.apache.commons.dbcp2.BasicDataSource dataSource = new org.apache.commons.dbcp2.BasicDataSource();
         dataSource.setUrl(dataSourceUrl);
         dataSource.setUsername(dataSourceUsername);
