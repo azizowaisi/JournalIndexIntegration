@@ -11,8 +11,7 @@ provider:
   memorySize: 512
   environment:
     # Database Configuration
-    DB_URL: ${env:DB_URL}
-    DB_NAME: ${env:DB_NAME}
+    DB_URL: ${env:DB_URL}/${env:DB_NAME}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
     # AWS Configuration
