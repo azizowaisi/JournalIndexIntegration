@@ -26,11 +26,6 @@ public interface IndexCountryRepository extends JpaRepository<IndexCountry, Long
     List<IndexCountry> findByCompanyId(Long companyId);
     
     /**
-     * Find active countries
-     */
-    List<IndexCountry> findByActiveTrue();
-    
-    /**
      * Find country by name
      */
     Optional<IndexCountry> findByName(String name);
@@ -41,30 +36,15 @@ public interface IndexCountryRepository extends JpaRepository<IndexCountry, Long
     Optional<IndexCountry> findByCode(String code);
     
     /**
-     * Find country by ISO code
-     */
-    Optional<IndexCountry> findByIsoCode(String isoCode);
-    
-    /**
      * Search countries by name containing
      */
-    @Query("SELECT c FROM IndexCountry c WHERE c.name LIKE %:name% AND c.active = true")
-    List<IndexCountry> findByNameContainingAndActive(@Param("name") String name);
-    
-    /**
-     * Find countries by company and active status
-     */
-    List<IndexCountry> findByCompanyIdAndActive(Long companyId, Boolean active);
+    @Query("SELECT c FROM IndexCountry c WHERE c.name LIKE %:name%")
+    List<IndexCountry> findByNameContaining(@Param("name") String name);
     
     /**
      * Count countries by company
      */
     long countByCompanyId(Long companyId);
-    
-    /**
-     * Count active countries by company
-     */
-    long countByCompanyIdAndActive(Long companyId, Boolean active);
     
     /**
      * Check if country exists by country key
@@ -80,9 +60,4 @@ public interface IndexCountryRepository extends JpaRepository<IndexCountry, Long
      * Check if country exists by code
      */
     boolean existsByCode(String code);
-    
-    /**
-     * Check if country exists by ISO code
-     */
-    boolean existsByIsoCode(String isoCode);
 }

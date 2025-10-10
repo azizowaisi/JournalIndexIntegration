@@ -4,32 +4,26 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SQSEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.camel.CamelContext;
-import org.apache.camel.ProducerTemplate;
-import org.apache.camel.impl.DefaultCamelContext;
-import org.apache.camel.impl.engine.DefaultProducerTemplate;
+import com.teckiz.journalindex.model.SqsArticleMessage;
+import com.teckiz.journalindex.service.JsonArticleProcessor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * AWS Lambda handler for processing SQS messages containing website URLs
- * and harvesting OAI data to store in MySQL
+ * AWS Lambda handler for processing SQS messages containing article data
+ * Processes JSON messages directly from SQS and saves to MySQL
  */
 public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     
     private static final Logger logger = LogManager.getLogger(LambdaHandler.class);
-    private static CamelContext camelContext;
-    private static ProducerTemplate producerTemplate;
     private static AnnotationConfigApplicationContext springContext;
+    private static JsonArticleProcessor articleProcessor;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     static {
         try {
-            logger.info("=== INITIALIZING SPRING AND CAMEL CONTEXT ===");
+            logger.info("=== INITIALIZING SPRING CONTEXT ===");
             
             // Initialize Spring context
             springContext = new AnnotationConfigApplicationContext();
@@ -37,27 +31,14 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
             springContext.refresh();
             logger.info("Spring context initialized");
             
-            // Initialize Camel context
-            camelContext = new DefaultCamelContext();
-            logger.info("Camel context created");
+            // Get article processor service
+            articleProcessor = springContext.getBean(JsonArticleProcessor.class);
+            logger.info("JsonArticleProcessor bean retrieved");
 
-            // Get JournalIndexRoute from Spring context
-            JournalIndexRoute journalIndexRoute = springContext.getBean(JournalIndexRoute.class);
-            camelContext.addRoutes(journalIndexRoute);
-            logger.info("Routes added to Camel context");
-
-            camelContext.start();
-            logger.info("Camel context started");
-
-            // Initialize producer template
-            producerTemplate = new DefaultProducerTemplate(camelContext);
-            producerTemplate.start();
-            logger.info("Producer template started");
-
-            logger.info("Spring and Camel context initialized successfully");
+            logger.info("Spring context initialized successfully");
         } catch (Exception e) {
-            logger.error("Failed to initialize Spring and Camel context", e);
-            throw new RuntimeException("Failed to initialize Spring and Camel context", e);
+            logger.error("Failed to initialize Spring context", e);
+            throw new RuntimeException("Failed to initialize Spring context", e);
         }
     }
     
@@ -80,7 +61,6 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
         logger.info("LOG_LEVEL: {}", System.getenv("LOG_LEVEL"));
         logger.info("DB_URL: {}", System.getenv("DB_URL") != null ? "***CONFIGURED***" : "NOT_SET");
         logger.info("SQS_QUEUE_URL: {}", System.getenv("SQS_QUEUE_URL") != null ? "***CONFIGURED***" : "NOT_SET");
-        logger.info("S3_BUCKET_NAME: {}", System.getenv("S3_BUCKET_NAME") != null ? "***CONFIGURED***" : "NOT_SET");
 
         if (sqsEvent.getRecords() == null || sqsEvent.getRecords().isEmpty()) {
             logger.warn("No SQS records found in event");
@@ -102,59 +82,65 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                 logger.info("Message Body Length: {}", message.getBody().length());
                 
                 String messageBody = message.getBody();
-                logger.info("Raw Message Body: {}", messageBody);
+                logger.info("Raw Message Body: {}", messageBody.length() > 500 ? messageBody.substring(0, 500) + "..." : messageBody);
 
                 try {
-                    // Parse the message body to extract URL and journal_key
+                    // Parse the message body as SqsArticleMessage
                     logger.info("Parsing message body with ObjectMapper...");
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> messageData = objectMapper.readValue(messageBody, Map.class);
-                    logger.info("Parsed message data: {}", messageData);
+                    SqsArticleMessage articleMessage = objectMapper.readValue(messageBody, SqsArticleMessage.class);
                     
-                    String websiteUrl = (String) messageData.get("url");
-                    String journalKey = (String) messageData.get("journal_key");
+                    logger.info("Parsed message data:");
+                    logger.info("  journalKey: {}", articleMessage.getJournalKey());
+                    logger.info("  messageType: {}", articleMessage.getMessageType());
+                    logger.info("  source: {}", articleMessage.getSource());
+                    logger.info("  success: {}", articleMessage.getSuccess());
                     
-                    logger.info("Extracted websiteUrl: {}", websiteUrl);
-                    logger.info("Extracted journalKey: {}", journalKey);
+                    if (articleMessage.getArticle() != null) {
+                        logger.info("  article.title: {}", articleMessage.getArticle().getTitle());
+                        logger.info("  article.creator: {}", articleMessage.getArticle().getCreator());
+                    }
 
-                    if (websiteUrl == null || websiteUrl.trim().isEmpty()) {
-                        logger.warn("No URL found in message body, skipping record: {}", message.getMessageId());
+                    // Validate required fields
+                    if (articleMessage.getJournalKey() == null || articleMessage.getJournalKey().trim().isEmpty()) {
+                        logger.warn("No journalKey found in message body, skipping record: {}", message.getMessageId());
                         errorCount++;
                         continue;
                     }
 
-                    if (journalKey == null || journalKey.trim().isEmpty()) {
-                        logger.warn("No journal_key found in message body, skipping record: {}", message.getMessageId());
+                    if (articleMessage.getMessageType() == null) {
+                        logger.warn("No messageType found in message body, skipping record: {}", message.getMessageId());
                         errorCount++;
                         continue;
                     }
 
-                    logger.info("Validation passed - Processing website URL: {} for journal: {}", websiteUrl, journalKey);
-
-                    // Create headers for Camel route
-                    Map<String, Object> headers = new HashMap<>();
-                    headers.put("websiteUrl", websiteUrl);
-                    headers.put("journalKey", journalKey);
-                    headers.put("messageId", message.getMessageId());
-                    headers.put("receiptHandle", message.getReceiptHandle());
-                    headers.put("messageIndex", i);
-                    headers.put("totalMessages", sqsEvent.getRecords().size());
-
-                    logger.info("Created Camel headers: {}", headers);
-                    logger.info("Sending message to Camel route: direct:processWebsite");
+                    logger.info("Validation passed - Processing article for journal: {}", articleMessage.getJournalKey());
 
                     try {
-                        long camelStartTime = System.currentTimeMillis();
-                        // Send message to Camel route for processing
-                        String result = producerTemplate.requestBodyAndHeaders("direct:processWebsite", null, headers, String.class);
-                        long camelEndTime = System.currentTimeMillis();
+                        long processingStart = System.currentTimeMillis();
                         
-                        logger.info("Camel route processing completed in {} ms", camelEndTime - camelStartTime);
-                        logger.info("Camel route result: {}", result);
+                        // Route based on message type
+                        String result;
+                        if ("Article".equalsIgnoreCase(articleMessage.getMessageType())) {
+                            logger.info("Processing single Article message type");
+                            result = articleProcessor.processArticle(articleMessage);
+                        } else if ("ArticleBatch".equalsIgnoreCase(articleMessage.getMessageType())) {
+                            logger.info("Processing ArticleBatch message type with {} articles", 
+                                    articleMessage.getArticlesInBatch());
+                            result = articleProcessor.processBatch(articleMessage);
+                        } else {
+                            logger.warn("Unsupported message type: {}", articleMessage.getMessageType());
+                            result = "Unsupported message type: " + articleMessage.getMessageType();
+                            errorCount++;
+                            continue;
+                        }
+                        
+                        long processingEnd = System.currentTimeMillis();
+                        logger.info("Processing completed in {} ms", processingEnd - processingStart);
+                        logger.info("Result: {}", result);
                         processedCount++;
                         
-                    } catch (Exception camelException) {
-                        logger.error("Error in Camel route processing for message {}: {}", message.getMessageId(), camelException.getMessage(), camelException);
+                    } catch (Exception processingException) {
+                        logger.error("Error processing message {}: {}", message.getMessageId(), processingException.getMessage(), processingException);
                         errorCount++;
                     }
 

@@ -176,5 +176,22 @@ application-secret.yaml
 target/site/jacoco/
 target/surefire-reports/
 
-# GitHub Actions
+# GitHub Actions and CI/CD
+.github/
 .github/workflows/*.yml.bak
+
+# Docker files
+docker*
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# SonarQube/SonarLint
+.sonar/
+sonar-project.properties
+sonar.properties
+target/sonar/
+target/site/sonar/
+
+# Temporary scripts (not deployment scripts)
+temp-scripts/

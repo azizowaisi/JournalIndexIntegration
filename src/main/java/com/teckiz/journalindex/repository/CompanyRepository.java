@@ -41,16 +41,6 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     List<Company> findByCountry(String country);
     
     /**
-     * Find master companies
-     */
-    List<Company> findByMasterTrue();
-    
-    /**
-     * Find sub companies by master company
-     */
-    List<Company> findByMasterCompanyId(Long masterCompanyId);
-    
-    /**
      * Search companies by name containing
      */
     @Query("SELECT c FROM Company c WHERE c.name LIKE %:name% AND c.active = true")

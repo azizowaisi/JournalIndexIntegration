@@ -107,4 +107,9 @@ public interface IndexJournalArticleRepository extends JpaRepository<IndexJourna
      * Check if article exists by publisher record ID
      */
     boolean existsByPublisherRecordId(String publisherRecordId);
+    
+    /**
+     * Find article by page URL
+     */
+    Optional<IndexJournalArticle> findByPageURL(String pageURL);
 }

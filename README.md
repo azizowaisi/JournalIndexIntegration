@@ -1,666 +1,180 @@
 # Journal Index Integration
 
-A standalone fanout Lambda service built with Apache Camel that processes SQS messages containing website URLs, discovers OAI (Open Archives Initiative) endpoints, harvests journal data, and stores it in MySQL.
+A Java-based AWS Lambda service for processing journal data from various sources including OAI harvesting and S3 file processing.
 
-## Project Location
-This project is now located at: `/Users/aziz.clipsource/Sites/JournalIndexIntegration`
+## Project Structure
 
-## Overview
-This service provides a two-step process for journal data integration:
-1. **CreatorCommand**: Fetches data from OAI endpoints and saves to IndexImportQueue
-2. **ImportCommand**: Processes IndexImportQueue entries and maps data to database entities
-
-## Two-Command Architecture
-
-### Step 1: CreatorCommand (Data Fetching)
-**Files**: `LambdaHandler.java` + `JournalIndexRoute.java` + `OaiHarvestService.java`
-
-**Responsibilities**:
-- Receive SQS messages with `url` and `journal_key`
-- Detect system type (OJS, DOAJ, Teckiz)
-- Fetch data from appropriate APIs
-- Save raw data to IndexImportQueue
-- Return success/failure status
-
-**Process Flow**:
 ```
-SQS Message → URL Detection → API Fetching → IndexImportQueue Creation
+├── src/                          # Java source code
+├── scripts/                      # All deployment and utility scripts
+│   ├── deploy.sh                # Unified deployment script
+│   └── run-offline.sh           # Local development server
+├── environments/                 # Environment configuration files
+│   ├── env.local               # Local development
+│   └── env.production          # Production environment
+└── serverless.yml              # Serverless Framework configuration
 ```
 
-### Step 2: ImportCommand (Data Processing)
-**Files**: `ImportCommandLambdaHandler.java` + `ImportCommandService.java` + `IndexQueueImporter.java`
+## Quick Start
 
-**Responsibilities**:
-- Process IndexImportQueue entries
-- Parse XML/JSON data
-- Map data to database entities
-- Update import queue status
-- Handle errors and retries
+### 1. Local Development
 
-**Process Flow**:
+```bash
+# Deploy locally with offline mode
+./scripts/deploy.sh
+
+# Run tests only
+./scripts/deploy.sh -a test
+
+# Run local development server
+./scripts/run-offline.sh
 ```
-IndexImportQueue → Data Parsing → Database Mapping → Status Update
+
+### 2. Production Environment
+
+```bash
+# Deploy to production (requires VPC configuration)
+./scripts/deploy.sh -e production
+
+# Validate VPC configuration
+./scripts/deploy.sh -e production --validate-only
 ```
+
+## Unified Deployment Script
+
+The `scripts/deploy.sh` script handles all deployment scenarios:
+
+### Usage
+
+```bash
+./scripts/deploy.sh [OPTIONS]
+```
+
+### Options
+
+- `-e, --environment ENV` - Environment (local|production) [default: local]
+- `-a, --action ACTION` - Action (deploy|test|validate|build|local-test) [default: deploy]
+- `-s, --stage STAGE` - Serverless stage [default: local]
+- `--skip-tests` - Skip running tests
+- `--validate-only` - Only validate configuration, don't deploy
+- `-h, --help` - Show help message
+
+### Examples
+
+```bash
+# Deploy to local environment
+./scripts/deploy.sh
+
+# Deploy to production
+./scripts/deploy.sh -e production
+
+# Run tests only
+./scripts/deploy.sh -a test
+
+# Validate production configuration
+./scripts/deploy.sh -e production --validate-only
+
+# Build only
+./scripts/deploy.sh -a build
+
+# Run local development server
+./scripts/run-offline.sh
+```
+
+## Environments
+
+### Local Environment
+- Uses H2 in-memory database
+- Mock AWS services with serverless-offline
+- No VPC configuration required
+- Perfect for development and testing
+
+### Production Environment
+- Uses MySQL RDS in VPC
+- Real AWS services
+- VPC configuration required
+- Full production deployment
+
+## VPC Configuration
+
+For production environment, you need to configure:
+
+1. **VPC Settings**:
+   - `VPC_ID` - Your VPC ID
+   - `VPC_CIDR` - VPC CIDR block
+   - `VPC_SECURITY_GROUP_ID` - Security group for Lambda
+   - `VPC_SUBNET_ID_1` - First subnet
+   - `VPC_SUBNET_ID_2` - Second subnet
+
+2. **MySQL RDS Settings**:
+   - `MYSQL_HOST` - RDS endpoint
+   - `MYSQL_DATABASE` - Database name
+   - `DB_USERNAME` - Database username
+   - `DB_PASSWORD` - Database password
+
+3. **AWS Services**:
+   - `SQS_QUEUE_ARN` - SQS queue ARN
+   - `S3_FILE_QUEUE_ARN` - S3 file processing queue ARN
+   - `S3_SCRAPING_BUCKET` - S3 bucket for scraped data
+
 
 ## Features
 
-- **SQS Integration**: Processes messages from AWS SQS containing website URLs
-- **OAI Discovery**: Automatically discovers OAI endpoints from website URLs
-- **Data Harvesting**: Harvests journal metadata using OAI-PMH protocol
-- **MySQL Storage**: Stores harvested data in MySQL database with comprehensive entity relationships
-- **Entity Management**: Full CRUD operations for companies, journals, subjects, languages, and countries
-- **JPA Integration**: Spring Data JPA repositories for efficient database operations
-- **Error Handling**: Comprehensive error handling and retry mechanisms
-- **Logging**: Detailed logging for monitoring and debugging
-
-## System Type Detection
-
-The service automatically detects the system type based on the URL:
-
-### OJS OAI System
-- **Detection**: URLs containing `/index.php/` or `/oai`
-- **Example**: `https://example.com/index.php/journal`
-- **Process**:
-  1. Calls `/oai?verb=Identify` to get repository information
-  2. Calls `/oai?verb=ListRecords&metadataPrefix=oai_dc` to get records
-  3. Creates two IndexImportQueue entries:
-     - `ojs-identify` with identify response
-     - `ojs-record-list` with records response
-
-### DOAJ System
-- **Detection**: URLs containing `doaj.org`
-- **Example**: `https://doaj.org/api/v2/journals/123`
-- **Process**:
-  1. Calls the DOAJ API endpoint
-  2. Creates one IndexImportQueue entry:
-     - `doaj` with API response
-
-### Teckiz System
-- **Detection**: URLs containing `teckiz` or `journal`
-- **Example**: `https://teckiz.com/journal/123`
-- **Process**:
-  1. Makes API calls to get journal data
-  2. Creates one IndexImportQueue entry:
-     - `teckiz` with JSON response
-
-## Architecture
-
-### CreatorCommand Flow
-```
-SQS Message
-    ↓
-LambdaHandler (parse message)
-    ↓
-JournalIndexRoute (detect system, fetch data)
-    ↓
-OaiHarvestService (create IndexImportQueue entries)
-    ↓
-IndexImportQueue (raw data stored)
-```
-
-### ImportCommand Flow
-```
-IndexImportQueue (pending entries)
-    ↓
-ImportCommandLambdaHandler (trigger processing)
-    ↓
-ImportCommandService (get next entry)
-    ↓
-IndexQueueImporter (route by system type)
-    ↓
-Specific Importer (parse and map data)
-    ↓
-Database Entities (IndexJournal, etc.)
-```
-
-## Prerequisites
-
-- Java 11 or higher
-- Maven 3.6 or higher
-- MySQL 8.0 or higher
-- AWS CLI configured
-- Node.js 18+ (for Serverless Framework)
-- Serverless Framework (`npm install -g serverless`)
-- Docker (optional, for local testing)
-
-## Setup
-
-### 1. Database Setup
-
-Create the MySQL database (tables will be auto-generated by Hibernate):
-
-```sql
-mysql -u root -p
-CREATE DATABASE journal_index_dev;
-CREATE DATABASE journal_index_staging;  
-CREATE DATABASE journal_index_prod;
-```
-
-#### Database Schema Management
-
-The application uses **JPA/Hibernate auto-generation** instead of manual SQL scripts:
-
-- **Development**: `spring.jpa.hibernate.ddl-auto=update` - Updates schema automatically
-- **Staging**: `spring.jpa.hibernate.ddl-auto=validate` - Validates existing schema
-- **Production**: `spring.jpa.hibernate.ddl-auto=validate` - Validates existing schema
-
-**Benefits**:
-- ✅ No manual schema maintenance
-- ✅ Entity-driven database design
-- ✅ Automatic index creation
-- ✅ Relationship management
-- ✅ Environment-specific strategies
-
-### 2. Environment Configuration
-
-The project supports multiple environments (development, staging, production) with separate configuration files.
-
-#### Quick Setup
-```bash
-# Select development environment (recommended for local development)
-./select-profile.sh dev
-
-# Or use npm script
-npm run profile:dev
-```
-
-#### Manual Setup
-```bash
-# Copy environment template
-cp env.example .env
-
-# Or copy environment-specific file
-cp env.development .env
-
-# Edit with your actual values (NEVER commit .env files)
-nano .env
-```
-
-#### 🔒 Security Note
-- **Never commit `.env` files** - they contain sensitive information
-- **Use `env.example`** as a template
-- **Set strong passwords** for all environments
-- **Use environment variables** for all sensitive configuration
-
-#### Environment-Specific Configuration
-- **Development**: `env.development` - Local development with verbose logging
-- **Staging**: `env.staging` - Pre-production testing environment  
-- **Production**: `env.production` - Production environment with optimized settings
-
-```bash
-# Database Configuration (Development) - Recommended approach
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=journal_index_dev
-DB_USERNAME=root
-DB_PASSWORD=your_password
-
-# Alternative: Complete URL (will override individual components)
-# DB_URL=jdbc:mysql://localhost:3306/journal_index_dev?useSSL=false&serverTimezone=UTC
-DB_USERNAME=root
-DB_PASSWORD=dev_password_123
-
-# AWS Configuration
-AWS_REGION=us-east-1
-SQS_QUEUE_NAME=journal-index-queue-dev
-
-# Application Configuration
-BATCH_SIZE=5
-MAX_RETRIES=2
-```
-
-### 3. Install Serverless Dependencies
-
-```bash
-npm install
-```
-
-### 4. Build the Project
-
-```bash
-mvn clean package
-```
-
-## Deployment
-
-### Serverless Framework Deployment (Recommended)
-
-#### 1. Deploy All Functions
-```bash
-# Deploy to development stage
-npm run deploy:dev
-
-# Deploy to staging stage
-npm run deploy:staging
-
-# Deploy to production stage
-npm run deploy:prod
-
-# Or use serverless directly
-serverless deploy --stage dev
-serverless deploy --stage staging
-serverless deploy --stage prod
-```
-
-#### 2. Deploy Individual Functions
-```bash
-# Deploy only CreatorCommand
-serverless deploy function -f creatorCommand
-
-# Deploy only ImportCommand
-serverless deploy function -f importCommand
-
-# Deploy only Health Check
-serverless deploy function -f healthCheck
-```
-
-#### 3. View Deployment Status
-```bash
-# Check deployment status
-serverless info
-
-# View function logs
-npm run logs:creator
-npm run logs:importer
-```
-
-### Manual AWS CLI Deployment (Alternative)
-
-#### 1. Deploy CreatorCommand Lambda
-```bash
-# Build JAR
-mvn clean package
-
-# Deploy using AWS CLI
-aws lambda create-function \
-  --function-name journal-index-creator \
-  --runtime java11 \
-  --role arn:aws:iam::account:role/lambda-execution-role \
-  --handler com.teckiz.journalindex.LambdaHandler \
-  --zip-file fileb://target/journal-index-integration-1.0.0.jar \
-  --timeout 300 \
-  --memory-size 512
-```
-
-#### 2. Deploy ImportCommand Lambda
-```bash
-aws lambda create-function \
-  --function-name journal-index-importer \
-  --runtime java11 \
-  --role arn:aws:iam::account:role/lambda-execution-role \
-  --handler com.teckiz.journalindex.ImportCommandLambdaHandler \
-  --zip-file fileb://target/journal-index-integration-1.0.0.jar \
-  --timeout 180 \
-  --memory-size 256
-```
-
-#### 3. Configure SQS Trigger
-```bash
-# Create SQS trigger for CreatorCommand
-aws lambda create-event-source-mapping \
-  --event-source-arn arn:aws:sqs:region:account:queue-name \
-  --function-name journal-index-creator \
-  --batch-size 1
-```
-
-#### 4. Schedule ImportCommand
-```bash
-# Create CloudWatch Events rule for ImportCommand
-aws events put-rule \
-  --name journal-index-importer-schedule \
-  --schedule-expression "rate(5 minutes)"
-
-# Add Lambda target
-aws events put-targets \
-  --rule journal-index-importer-schedule \
-  --targets "Id"="1","Arn"="arn:aws:lambda:region:account:function:journal-index-importer"
-```
-
-#### 5. Set Environment Variables
-```bash
-aws lambda update-function-configuration \
-  --function-name journal-index-creator \
-  --environment Variables='{
-    "DB_URL":"jdbc:mysql://your-rds-endpoint:3306/journal_index",
-    "DB_USERNAME":"your_username",
-    "DB_PASSWORD":"your_password",
-    "AWS_REGION":"us-east-1"
-  }'
-```
-
-### Serverless Management Commands
-
-#### Testing Functions
-```bash
-# Test CreatorCommand
-npm run invoke:creator
-
-# Test ImportCommand
-npm run invoke:importer
-
-# Test Health Check
-npm run invoke:health
-
-# View logs
-npm run logs:creator
-npm run logs:importer
-```
-
-#### Development
-```bash
-# Start local serverless offline
-npm run offline
-
-# Validate serverless configuration
-npm run validate
-
-# Remove deployed stack
-npm run remove
-```
-
-### Local Testing
-
-1. **Start MySQL**:
-   ```bash
-   docker run --name mysql-journal -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=journal_index -p 3306:3306 -d mysql:8.0
-   ```
-
-2. **Run Tests**:
-   ```bash
-   mvn test
-   ```
-
-3. **Run Locally with Serverless Offline**:
-   ```bash
-   npm run offline
-   ```
-
-4. **Run Locally** (for testing):
-   ```bash
-   java -jar target/journal-index-integration-1.0.0.jar
-   ```
-
-## Usage
-
-### Sending Messages to SQS
-
-Send a message to the SQS queue with a website URL:
-
-```bash
-aws sqs send-message \
-  --queue-url https://sqs.us-east-1.amazonaws.com/123456789012/journal-index-queue \
-  --message-body "https://example.com"
-```
-
-### Message Format
-
-The SQS message should contain JSON with `url` and `journal_key`:
-
-```json
-{
-  "url": "https://example.com/journal",
-  "journal_key": "JRN_123456789"
-}
-```
-
-### Example Usage
-
-```bash
-aws sqs send-message \
-  --queue-url https://sqs.us-east-1.amazonaws.com/123456789012/journal-index-queue \
-  --message-body '{"url":"https://example.com/index.php/journal","journal_key":"JRN_123456789"}'
-```
-
-## Configuration
-
-### Database Configuration
-
-The application uses a comprehensive set of database entities:
-
-#### Core Entities (12 Total)
-
-1. **Company** (`company`)
-   - Main organization entity with company information
-   - Self-referencing relationship (master/sub companies)
-   - Company settings, address, and contact information
-
-2. **IndexJournal** (`indexJournal`)
-   - Main journal entity with journal metadata
-   - Journal identification (ISSN, title, publisher)
-   - Status management and review process tracking
-
-3. **IndexJournalSubject** (`indexJournalSubject`)
-   - Journal subject/category management
-   - Company-specific subjects with active/inactive status
-
-4. **IndexJournalLanguage** (`indexJournalLanguage`)
-   - Language support for journals
-   - Primary language designation and language codes
-
-5. **IndexCountry** (`indexCountry`)
-   - Country information management
-   - ISO codes support and company-specific countries
-
-6. **IndexLanguage** (`indexLanguage`)
-   - Language information management
-   - Language codes (A and B) and company-specific languages
-
-7. **IndexJournalSetting** (`indexJournalSetting`)
-   - Journal-specific settings including OAI endpoints
-   - Harvest settings and error tracking
-
-8. **IndexJournalArticle** (`indexJournalArticle`)
-   - Journal article information with DOI support
-   - Article metadata (title, abstract, keywords, references)
-
-9. **IndexJournalVolume** (`indexJournalVolume`)
-   - Journal volume and issue information
-   - Volume/issue number tracking and cover image support
-
-10. **IndexJournalAuthor** (`indexJournalAuthor`)
-    - Author information and affiliations
-    - ORCID support and biography tracking
-
-11. **IndexRelatedMedia** (`indexRelatedMedia`)
-    - Related media file management
-    - MIME type support and reference key tracking
-
-12. **IndexJournalPage** (`indexJournalPage`)
-    - Journal-specific pages (editorial board, guidelines)
-    - Page type constants and URL management
-
-13. **IndexImportQueue** (`indexImportQueue`)
-    - Import queue for processing data
-    - System type support (OJS, DOAJ, Teckiz)
-    - Processing status tracking
-
-#### Legacy Tables (for backward compatibility)
-- **journals**: Legacy journal storage
-- **journal_records**: Individual OAI records
-- **harvest_logs**: Harvesting activity logs
-- **oai_endpoints**: Discovered OAI endpoints
-
-### IndexImportQueue Data Storage
-
-The `data` column stores complete API responses:
-
-**OJS OAI Identify**:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
-  <responseDate>2024-01-01T00:00:00Z</responseDate>
-  <request verb="Identify">https://example.com/oai</request>
-  <Identify>
-    <repositoryName>Example Journal Repository</repositoryName>
-    <baseURL>https://example.com/oai</baseURL>
-  </Identify>
-</OAI-PMH>
-```
-
-**DOAJ Response**:
-```json
-{
-  "id": "123456789",
-  "title": "Journal Title",
-  "issn": "1234-5678",
-  "eissn": "9876-5432",
-  "publisher": "Publisher Name",
-  "subjects": ["Computer Science"],
-  "languages": ["English"],
-  "country": "US"
-}
-```
-
-### OAI Configuration
-
-- **Default Metadata Prefix**: `oai_dc`
-- **Batch Size**: 100 records per request
-- **Timeout**: 30 seconds
-
-### Error Handling
-
-- **Max Retries**: 3 attempts
-- **Retry Delay**: 5 seconds
-- **Dead Letter Queue**: Failed messages are logged and can be sent to a DLQ
+### 1. OAI Harvesting
+- Processes OJS OAI endpoints
+- Handles DOAJ data
+- Supports Teckiz journal systems
+- Automatic system type detection
+
+### 2. S3 File Processing
+- Reads files from S3 buckets
+- Processes data from S3 files
+- Supports JSON and XML formats
+- Automatic content type detection
+
+### 3. Database Storage
+- Stores processed data in MySQL
+- Queue-based processing
+- Error handling and retry logic
+- Comprehensive logging
+
+### 4. VPC Support
+- Runs in private subnets
+- Secure database connectivity
+- Configurable security groups
+- Optimized connection pooling
 
 ## Monitoring
 
-### CloudWatch Logs
-
-The application logs to CloudWatch with the following log groups:
-- `/aws/lambda/journal-index-creator` - CreatorCommand processing logs
-- `/aws/lambda/journal-index-importer` - ImportCommand processing logs
-
-### Database Monitoring
-
-Monitor the following tables for processing status:
-- `IndexImportQueue` - Import queue status and processing
-- `IndexJournal` - Journal metadata and status
-- `harvest_logs` - Processing status and timing (legacy)
-- `journal_records` - Individual record processing (legacy)
-
-### Key Metrics to Monitor
-
-#### CreatorCommand Metrics
-- **SQS Messages Processed**: Count of messages handled
-- **System Type Distribution**: Breakdown by detected system (OJS, DOAJ, Teckiz)
-- **API Response Times**: Performance of external APIs
-- **Queue Creation Rate**: IndexImportQueue entries created
-
-#### ImportCommand Metrics
-- **Queue Processing Rate**: Entries processed per minute
-- **Success/Failure Rate**: Processing success percentage
-- **Processing Time**: Time per queue entry
-- **Database Operations**: Entity creation/updates
+- CloudWatch logs for all Lambda functions
+- CloudWatch alarms for error monitoring
+- Detailed logging for debugging
+- Performance metrics
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **OAI Endpoint Not Found**:
-   - Check if the website supports OAI-PMH
-   - Verify the URL format and accessibility
+1. **VPC Configuration**: Ensure all VPC settings are correct
+2. **Database Connectivity**: Check security groups and RDS endpoint
+3. **SQS Permissions**: Verify IAM permissions for SQS access
+4. **S3 Access**: Ensure Lambda has S3 read permissions
 
-2. **Database Connection Issues**:
-   - Verify database credentials and connection string
-   - Check network connectivity and security groups
+### Debugging
 
-3. **SQS Message Processing**:
-   - Check Lambda function logs in CloudWatch
-   - Verify SQS queue permissions
+1. Check CloudWatch logs
+2. Validate configuration with `--validate-only`
+3. Test locally with `-e local`
+4. Review security group rules
 
-### Logs
+## Contributing
 
-Check the following log levels for debugging:
-- `INFO`: General processing information
-- `DEBUG`: Detailed SQL and HTTP operations
-- `ERROR`: Error conditions and stack traces
-
-## Benefits of Two-Command Architecture
-
-### Scalability
-- **Independent Scaling**: Each Lambda can scale based on its workload
-- **Resource Optimization**: Different memory/timeout requirements
-- **Parallel Processing**: Multiple import processes can run simultaneously
-
-### Reliability
-- **Fault Isolation**: Failures in one step don't affect the other
-- **Retry Logic**: Failed imports can be retried without re-fetching data
-- **Data Persistence**: Raw data is preserved in IndexImportQueue
-
-### Maintainability
-- **Clear Separation**: Each service has a single responsibility
-- **Independent Deployment**: Services can be updated separately
-- **Easier Testing**: Each component can be tested in isolation
-
-## Project Structure
-
-```
-/Users/aziz.clipsource/Sites/JournalIndexIntegration/
-├── src/
-│   ├── main/
-│   │   ├── java/com/teckiz/journalindex/
-│   │   │   ├── config/           # Spring configuration classes
-│   │   │   ├── entity/           # JPA entities (13 entities)
-│   │   │   ├── repository/       # Spring Data JPA repositories
-│   │   │   ├── service/          # Business logic services (7 services)
-│   │   │   ├── parser/           # OAI data parsing utilities
-│   │   │   ├── LambdaHandler.java           # CreatorCommand Lambda
-│   │   │   ├── ImportCommandLambdaHandler.java  # ImportCommand Lambda
-│   │   │   └── JournalIndexRoute.java       # Camel routes
-│   │   └── resources/
-│   │       ├── application.properties  # Base configuration
-│   │       ├── application-dev.properties  # Development profile
-│   │       ├── application-staging.properties  # Staging profile
-│   │       └── application-prod.properties  # Production profile
-│   └── test/
-│       ├── java/                  # Test classes
-│       └── resources/             # Test resources
-├── pom.xml                       # Maven configuration
-├── README.md                     # Project documentation
-├── deploy.sh                     # Deployment script
-├── docker-compose.yml            # Docker configuration
-└── Dockerfile                    # Docker image definition
-```
-
-## Development
-
-### Adding New OAI Metadata Formats
-
-1. Update the `OaiDataParser` class
-2. Add new parsing logic for the metadata format
-3. Update the database schema if needed
-
-### Customizing Data Processing
-
-1. Modify the `OaiHarvestService` class
-2. Update the Camel routes in `JournalIndexRoute`
-3. Add new database fields as needed
-
-### Adding New System Types
-
-1. Add detection logic in `JournalIndexRoute`
-2. Create new importer service (e.g., `CustomSystemImporter`)
-3. Update `IndexQueueImporter` to route to new importer
-4. Add system-specific parsing logic
-
-## Future Enhancements
-
-### CreatorCommand Improvements
-- **Caching**: Cache frequently accessed OAI endpoints
-- **Rate Limiting**: Respect API rate limits
-- **Data Validation**: Validate data before saving to queue
-
-### ImportCommand Improvements
-- **Batch Processing**: Process multiple entries in one Lambda invocation
-- **Data Transformation**: More sophisticated data mapping
-- **Error Recovery**: Advanced retry and error handling strategies
-
-### Additional System Support
-- **Crossref**: Support for Crossref API
-- **PubMed**: Support for PubMed/PMC
-- **Custom APIs**: Configurable API endpoints
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with `./scripts/deploy.sh -a test`
+5. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.

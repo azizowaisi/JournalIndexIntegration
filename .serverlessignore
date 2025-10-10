@@ -1,0 +1,85 @@
+# Directories and files to exclude from Serverless deployment
+
+# IDE and development tools
+.idea/
+.vscode/
+.github/
+.serverless/
+
+# Docker files
+docker*
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# SonarQube/SonarLint
+.sonar/
+sonar-project.properties
+sonar.properties
+target/sonar/
+target/site/sonar/
+
+# Development and testing
+scripts/
+temp-scripts/
+test-scripts/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Environment files (use serverless env vars instead)
+.env
+.env.*
+environments/
+
+# Node modules (if any)
+node_modules/
+
+# Maven build artifacts
+target/
+dependency-reduced-pom.xml
+
+# IDE specific files
+*.swp
+*.swo
+*~
+*.iws
+*.iml
+*.ipr
+.settings/
+.project
+.classpath
+
+# Security and sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+secrets/
+credentials/
+config/secrets/
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup
+database/
+
+# Application specific
+application-local.yml
+application-local.yaml
+application-secret.yml
+application-secret.yaml

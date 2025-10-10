@@ -22,7 +22,7 @@ public class IndexJournalArticle {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "article_key", length = 20)
+    @Column(name = "article_key", length = 255)
     private String articleKey;
 
     @Column(name = "received_at")
@@ -34,16 +34,16 @@ public class IndexJournalArticle {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
-    @Column(name = "doi", length = 50)
+    @Column(name = "doi", length = 255)
     private String doi;
 
-    @Column(name = "publisher_record_id", length = 50)
+    @Column(name = "publisher_record_id", length = 255)
     private String publisherRecordId;
 
     @Column(name = "article_type")
     private String articleType;
 
-    @Column(name = "pages", length = 100)
+    @Column(name = "pages", length = 255)
     private String pages;
 
     @Column(name = "page_url", length = 255)

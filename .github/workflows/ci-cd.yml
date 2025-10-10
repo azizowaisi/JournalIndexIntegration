@@ -1,24 +1,28 @@
-name: CI/CD - Journal Index Integration
+name: CI/CD - Deploy to AWS
 
 on:
   push:
-    branches: [master]   # Deploy only when master branch is updated
+    branches:
+      - master
+      - main
 
 jobs:
-  build-deploy:
+  deploy:
+    name: Build and Deploy to AWS Lambda
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
+      # 1. Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up JDK 21 (Latest LTS for AWS Lambda)
-      - name: Set up JDK 21
+      # 2. Set up JDK 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
+          cache: 'maven'
 
       # 3. Cache Maven dependencies
       - name: Cache Maven packages
@@ -28,30 +32,69 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      # 4. Build the JAR with Maven
+      # 4. Build JAR with Maven (skip tests for faster deployment)
       - name: Build with Maven
-        run: mvn -B clean package
+        run: mvn -B clean package -DskipTests
 
-      # 5. Install Serverless Framework v4
-      - name: Install Serverless Framework v4
+      # 5. Set up Node.js for Serverless Framework
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 6. Install Serverless Framework v4
+      - name: Install Serverless Framework
         run: npm install -g serverless@4
 
-      # 6. Deploy using Serverless Framework with authentication
-      - name: Deploy to AWS
+      # 7. Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      # 8. Load environment variables and deploy
+      - name: Deploy to AWS Lambda
         env:
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
           # Database Configuration
           DB_URL: ${{ secrets.DB_URL }}
-          DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_SSL_MODE: ${{ secrets.MYSQL_SSL_MODE }}
+          MYSQL_CONNECTION_TIMEOUT: ${{ secrets.MYSQL_CONNECTION_TIMEOUT }}
+          MYSQL_SOCKET_TIMEOUT: ${{ secrets.MYSQL_SOCKET_TIMEOUT }}
           # AWS Services Configuration
+          AWS_REGION: ap-south-1
           SQS_QUEUE_URL: ${{ secrets.SQS_QUEUE_URL }}
           SQS_QUEUE_ARN: ${{ secrets.SQS_QUEUE_ARN }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          SERVERLESS_DEPLOYMENT_BUCKET: ${{ secrets.SERVERLESS_DEPLOYMENT_BUCKET }}
+          # VPC Configuration
+          VPC_ID: ${{ secrets.VPC_ID }}
+          VPC_CIDR: ${{ secrets.VPC_CIDR }}
+          VPC_SECURITY_GROUP_ID: ${{ secrets.VPC_SECURITY_GROUP_ID }}
+          VPC_SUBNET_ID_1: ${{ secrets.VPC_SUBNET_ID_1 }}
+          VPC_SUBNET_ID_2: ${{ secrets.VPC_SUBNET_ID_2 }}
         run: |
-          echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
-          sls deploy --stage prod --region $AWS_REGION
+          echo "Deploying to AWS Lambda..."
+          sls deploy --stage production --region ap-south-1
+
+      # 9. Verify deployment
+      - name: Verify deployment
+        run: |
+          sls info --stage production --region ap-south-1
+
+      # 10. Post deployment summary
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Lambda Function: journal-index-integration-production-processor"
+          echo "Region: ap-south-1"
+          echo "Runtime: Java 17 with SnapStart"
+          echo "Batch Size: 10 messages"
+

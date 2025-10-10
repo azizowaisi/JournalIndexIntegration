@@ -26,11 +26,6 @@ public interface IndexLanguageRepository extends JpaRepository<IndexLanguage, Lo
     List<IndexLanguage> findByCompanyId(Long companyId);
     
     /**
-     * Find active languages
-     */
-    List<IndexLanguage> findByActiveTrue();
-    
-    /**
      * Find language by name
      */
     Optional<IndexLanguage> findByName(String name);
@@ -48,23 +43,13 @@ public interface IndexLanguageRepository extends JpaRepository<IndexLanguage, Lo
     /**
      * Search languages by name containing
      */
-    @Query("SELECT l FROM IndexLanguage l WHERE l.name LIKE %:name% AND l.active = true")
-    List<IndexLanguage> findByNameContainingAndActive(@Param("name") String name);
-    
-    /**
-     * Find languages by company and active status
-     */
-    List<IndexLanguage> findByCompanyIdAndActive(Long companyId, Boolean active);
+    @Query("SELECT l FROM IndexLanguage l WHERE l.name LIKE %:name%")
+    List<IndexLanguage> findByNameContaining(@Param("name") String name);
     
     /**
      * Count languages by company
      */
     long countByCompanyId(Long companyId);
-    
-    /**
-     * Count active languages by company
-     */
-    long countByCompanyIdAndActive(Long companyId, Boolean active);
     
     /**
      * Check if language exists by language key

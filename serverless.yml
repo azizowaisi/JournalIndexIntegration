@@ -4,23 +4,45 @@ frameworkVersion: '4'
 
 provider:
   name: aws
-  runtime: java21
+  runtime: java17
   region: ${opt:region, 'ap-south-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300
-  memorySize: 512
+  memorySize: 2048
+  deploymentBucket:
+    name: ${env:SERVERLESS_DEPLOYMENT_BUCKET}
+  vpc:
+    securityGroupIds:
+      - ${env:VPC_SECURITY_GROUP_ID}
+    subnetIds:
+      - ${env:VPC_SUBNET_ID_1}
+      - ${env:VPC_SUBNET_ID_2}
   environment:
     # Database Configuration
-    DB_URL: jdbc:mysql://${env:DB_URL}/${env:DB_NAME}
+    DB_URL: ${env:DB_URL}
     DB_USERNAME: ${env:DB_USERNAME}
     DB_PASSWORD: ${env:DB_PASSWORD}
     # AWS Configuration
     SQS_QUEUE_URL: ${env:SQS_QUEUE_URL}
     SQS_QUEUE_ARN: ${env:SQS_QUEUE_ARN}
-    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
+    # VPC Configuration
+    VPC_SECURITY_GROUP_ID: ${env:VPC_SECURITY_GROUP_ID}
+    VPC_SUBNET_ID_1: ${env:VPC_SUBNET_ID_1}
+    VPC_SUBNET_ID_2: ${env:VPC_SUBNET_ID_2}
+    # MySQL VPC Configuration
+    MYSQL_HOST: ${env:MYSQL_HOST}
+    MYSQL_PORT: ${env:MYSQL_PORT}
+    MYSQL_DATABASE: ${env:MYSQL_DATABASE}
+    MYSQL_SSL_MODE: ${env:MYSQL_SSL_MODE}
+    MYSQL_CONNECTION_TIMEOUT: ${env:MYSQL_CONNECTION_TIMEOUT}
+    MYSQL_SOCKET_TIMEOUT: ${env:MYSQL_SOCKET_TIMEOUT}
+    # Function Configuration
+    FUNCTION_TYPE: processor
+    LOG_LEVEL: INFO
   iam:
     role:
       statements:
+        # SQS permissions
         - Effect: Allow
           Action:
             - sqs:ReceiveMessage
@@ -28,32 +50,22 @@ provider:
             - sqs:GetQueueAttributes
           Resource:
             - ${env:SQS_QUEUE_ARN}
+        # VPC networking permissions (required for Lambda in VPC)
         - Effect: Allow
           Action:
-            - rds:DescribeDBInstances
-            - rds:DescribeDBClusters
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:AttachNetworkInterface
+            - ec2:DetachNetworkInterface
           Resource: '*'
+        # CloudWatch Logs permissions
         - Effect: Allow
           Action:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-            - logs:DescribeLogGroups
-            - logs:DescribeLogStreams
           Resource: '*'
-        - Effect: Allow
-          Action:
-            - events:PutRule
-            - events:PutTargets
-            - events:DescribeRule
-          Resource: '*'
-        - Effect: Allow
-          Action:
-            - s3:PutObject
-            - s3:GetObject
-            - s3:DeleteObject
-          Resource:
-            - arn:aws:s3:::${env:S3_BUCKET_NAME}/*
   tags:
     Service: ${self:service}
     Environment: ${self:provider.stage}
@@ -63,83 +75,30 @@ package:
   artifact: target/journal-index-integration-1.0.0.jar
 
 functions:
-  # Journal Processor Lambda - Single unified process
+  # Journal Processor Lambda - Processes S3 XML files and saves articles
   journalProcessor:
     handler: com.teckiz.journalindex.LambdaHandler
     name: ${self:service}-${self:provider.stage}-processor
-    description: "Journal Processor: Receives SQS messages, fetches OAI data, saves to S3 and database"
+    description: "Processes article JSON messages from SQS and saves directly to database"
     timeout: 900
-    memorySize: 1024
+    memorySize: 2048  # Increased for faster cold start (more CPU = faster init)
+    snapStart: true  # Enable SnapStart for near-instant cold starts
+    vpc:
+      securityGroupIds:
+        - ${env:VPC_SECURITY_GROUP_ID}
+      subnetIds:
+        - ${env:VPC_SUBNET_ID_1}
+        - ${env:VPC_SUBNET_ID_2}
     events:
       - sqs:
           arn: ${env:SQS_QUEUE_ARN}
-          batchSize: 1
+          batchSize: 1  # Process 1 message at a time
           functionResponseType: ReportBatchItemFailures
     environment:
-      FUNCTION_TYPE: processor
-      BATCH_SIZE: 10
-      MAX_RETRIES: 3
-      LOG_LEVEL: INFO
+      LOG_LEVEL: DEBUG
     tags:
       Service: ${self:service}
       Function: processor
       Environment: ${self:provider.stage}
 
-# Custom resources
-resources:
-  Resources:
-    # CloudWatch Log Groups
-    JournalProcessorLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: /aws/lambda/journal-index-integration-${self:provider.stage}-processor
-        RetentionInDays: 14
-
-    # CloudWatch Alarms
-    JournalProcessorErrorAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${self:provider.stage}-processor-errors
-        AlarmDescription: "Journal Processor Lambda errors"
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 5
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: FunctionName
-            Value: ${self:service}-${self:provider.stage}-processor
-        TreatMissingData: notBreaching
-
-  Outputs:
-    JournalProcessorArn:
-      Description: "Journal Processor Lambda Function ARN"
-      Value: !GetAtt JournalProcessorLambdaFunction.Arn
-      Export:
-        Name: ${self:service}-${self:provider.stage}-processor-arn
-
-# Plugins
-plugins:
-  - serverless-offline # For local development
-  - serverless-offline-sqs # For local SQS simulation
-
-custom:
-  # Serverless offline configuration
-  serverless-offline:
-    httpPort: 3000
-    lambdaPort: 3002
-    host: 0.0.0.0
-
-  # SQS Offline configuration
-  serverless-offline-sqs:
-    port: 9324
-    host: 0.0.0.0
-    region: us-east-1
-    accessKeyId: local
-    secretAccessKey: local
-    skipCacheInvalidation: false
-    debug: true
-
-# Stack tags (moved to provider level)
+# No custom resources needed - using existing VPC resources
