@@ -262,10 +262,8 @@ jobs:
           while [ $deploy_attempt -le $max_deploy_attempts ]; do
             echo "Deployment attempt $deploy_attempt/$max_deploy_attempts"
 
-            # Load environment variables
-            set -a
-            source environments/env.production
-            set +a
+            # All environment variables are already set from GitHub secrets above
+            # No need to source env file - use secrets directly
 
             if sls deploy --stage production --region $AWS_REGION --verbose; then
               echo "✅ Deployment successful!"
