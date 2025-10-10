@@ -1,666 +1,1335 @@
 # Journal Index Integration
 
-A standalone fanout Lambda service built with Apache Camel that processes SQS messages containing website URLs, discovers OAI (Open Archives Initiative) endpoints, harvests journal data, and stores it in MySQL.
+A serverless AWS Lambda function built with Java 17, Spring Boot, and Hibernate for processing batched journal article messages from SQS and persisting them to MySQL database with automatic schema management.
 
-## Project Location
-This project is now located at: `/Users/aziz.clipsource/Sites/JournalIndexIntegration`
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Article Processing](#article-processing)
+- [SQS Message Format](#sqs-message-format)
+- [Database Schema](#database-schema)
+- [Project Structure](#project-structure)
+- [Environment Configuration](#environment-configuration)
+- [Deployment](#deployment)
+- [Testing](#testing)
+- [Monitoring](#monitoring)
+- [Troubleshooting](#troubleshooting)
+- [Performance](#performance)
+
+---
 
 ## Overview
-This service provides a two-step process for journal data integration:
-1. **CreatorCommand**: Fetches data from OAI endpoints and saves to IndexImportQueue
-2. **ImportCommand**: Processes IndexImportQueue entries and maps data to database entities
 
-## Two-Command Architecture
+This service is part of a two-service architecture:
+1. **IndexJournalsDataScraping** - Scrapes OAI-PMH data, parses articles to JSON, and sends batched messages
+2. **JournalIndexIntegration** (this service) - Processes batched article messages and saves to MySQL database
 
-### Step 1: CreatorCommand (Data Fetching)
-**Files**: `LambdaHandler.java` + `JournalIndexRoute.java` + `OaiHarvestService.java`
+### Technology Stack
 
-**Responsibilities**:
-- Receive SQS messages with `url` and `journal_key`
-- Detect system type (OJS, DOAJ, Teckiz)
-- Fetch data from appropriate APIs
-- Save raw data to IndexImportQueue
-- Return success/failure status
+- **Java 17**: Latest LTS with SnapStart support
+- **Spring Boot 3.3.5**: Application framework without web components
+- **Spring Data JPA**: Repository abstraction
+- **Hibernate 6.5.3**: ORM with automatic schema management
+- **HikariCP 5.1.0**: High-performance connection pool
+- **MySQL 8.4.0**: Relational database
+- **AWS Lambda**: Serverless compute with SnapStart
+- **AWS SQS**: Message queuing for article batches
+- **Jackson 2.18.0**: JSON processing
+- **Log4j2 2.24.1**: Structured logging
+- **Serverless Framework 4.x**: Deployment automation
 
-**Process Flow**:
-```
-SQS Message → URL Detection → API Fetching → IndexImportQueue Creation
-```
-
-### Step 2: ImportCommand (Data Processing)
-**Files**: `ImportCommandLambdaHandler.java` + `ImportCommandService.java` + `IndexQueueImporter.java`
-
-**Responsibilities**:
-- Process IndexImportQueue entries
-- Parse XML/JSON data
-- Map data to database entities
-- Update import queue status
-- Handle errors and retries
-
-**Process Flow**:
-```
-IndexImportQueue → Data Parsing → Database Mapping → Status Update
-```
+---
 
 ## Features
 
-- **SQS Integration**: Processes messages from AWS SQS containing website URLs
-- **OAI Discovery**: Automatically discovers OAI endpoints from website URLs
-- **Data Harvesting**: Harvests journal metadata using OAI-PMH protocol
-- **MySQL Storage**: Stores harvested data in MySQL database with comprehensive entity relationships
-- **Entity Management**: Full CRUD operations for companies, journals, subjects, languages, and countries
-- **JPA Integration**: Spring Data JPA repositories for efficient database operations
-- **Error Handling**: Comprehensive error handling and retry mechanisms
-- **Logging**: Detailed logging for monitoring and debugging
+### Core Features
+- ✅ **Batch Processing**: Handles up to 50 articles per SQS message
+- ✅ **Independent Transactions**: Each article processed in separate transaction
+- ✅ **Error Resilience**: One failed article doesn't affect others in batch
+- ✅ **Auto Schema Management**: Hibernate creates/updates tables automatically
+- ✅ **Duplicate Detection**: Checks existing articles by URL before insert
+- ✅ **Author Parsing**: Extracts and saves multiple authors per article
+- ✅ **Volume Management**: Creates journal volumes as needed
+- ✅ **Fast Cold Starts**: SnapStart enabled for near-instant initialization
 
-## System Type Detection
+### Advanced Features
+- **Connection Pooling**: HikariCP for optimal database performance
+- **VPC Integration**: Private subnet deployment with RDS access
+- **Comprehensive Logging**: Detailed CloudWatch logs for debugging
+- **JAR Optimization**: Minimal 36MB deployment package
+- **Multi-Environment**: Separate local and production configurations
+- **CI/CD Ready**: GitHub Actions workflows included
 
-The service automatically detects the system type based on the URL:
-
-### OJS OAI System
-- **Detection**: URLs containing `/index.php/` or `/oai`
-- **Example**: `https://example.com/index.php/journal`
-- **Process**:
-  1. Calls `/oai?verb=Identify` to get repository information
-  2. Calls `/oai?verb=ListRecords&metadataPrefix=oai_dc` to get records
-  3. Creates two IndexImportQueue entries:
-     - `ojs-identify` with identify response
-     - `ojs-record-list` with records response
-
-### DOAJ System
-- **Detection**: URLs containing `doaj.org`
-- **Example**: `https://doaj.org/api/v2/journals/123`
-- **Process**:
-  1. Calls the DOAJ API endpoint
-  2. Creates one IndexImportQueue entry:
-     - `doaj` with API response
-
-### Teckiz System
-- **Detection**: URLs containing `teckiz` or `journal`
-- **Example**: `https://teckiz.com/journal/123`
-- **Process**:
-  1. Makes API calls to get journal data
-  2. Creates one IndexImportQueue entry:
-     - `teckiz` with JSON response
+---
 
 ## Architecture
 
-### CreatorCommand Flow
+### Processing Flow
+
 ```
-SQS Message
-    ↓
-LambdaHandler (parse message)
-    ↓
-JournalIndexRoute (detect system, fetch data)
-    ↓
-OaiHarvestService (create IndexImportQueue entries)
-    ↓
-IndexImportQueue (raw data stored)
+SQS (Article Batch) → Lambda Handler → Spring Boot App
+                              ↓
+                      JsonArticleProcessor
+                              ↓
+                   ┌──────────┴──────────┐
+                   ↓                     ↓
+            Find/Create Journal   Process Each Article
+                   ↓                     ↓
+            Find/Create Volume    Independent Transaction
+                   ↓                     ↓
+              MySQL Database ← Save Article + Authors
 ```
 
-### ImportCommand Flow
-```
-IndexImportQueue (pending entries)
-    ↓
-ImportCommandLambdaHandler (trigger processing)
-    ↓
-ImportCommandService (get next entry)
-    ↓
-IndexQueueImporter (route by system type)
-    ↓
-Specific Importer (parse and map data)
-    ↓
-Database Entities (IndexJournal, etc.)
-```
+### Detailed Flow
 
-## Prerequisites
+#### For Each SQS Message (ArticleBatch):
+1. Parse message → Extract 50 articles
+2. **For each article independently**:
+   - Start new transaction
+   - Find or create IndexJournal
+   - Find or create IndexJournalVolume
+   - Check if article exists (by URL)
+   - Insert or update IndexJournalArticle
+   - Parse and save IndexJournalAuthor(s)
+   - Commit transaction
+3. Return success/error counts
 
-- Java 11 or higher
-- Maven 3.6 or higher
-- MySQL 8.0 or higher
+#### Error Handling:
+- Article #1 fails → Transaction rolled back for #1 only
+- Articles #2-50 → Continue processing normally
+- Final result: "Batch processed: 49 success, 1 errors out of 50 articles"
+
+---
+
+## Quick Start
+
+### 1. Prerequisites
+
+```bash
+# Required tools
+- Java 17 (Amazon Corretto recommended)
+- Maven 3.8+ 
 - AWS CLI configured
-- Node.js 18+ (for Serverless Framework)
-- Serverless Framework (`npm install -g serverless`)
-- Docker (optional, for local testing)
+- Serverless Framework 4.x
 
-## Setup
-
-### 1. Database Setup
-
-Create the MySQL database (tables will be auto-generated by Hibernate):
-
-```sql
-mysql -u root -p
-CREATE DATABASE journal_index_dev;
-CREATE DATABASE journal_index_staging;  
-CREATE DATABASE journal_index_prod;
+# Configure AWS credentials
+aws configure
 ```
 
-#### Database Schema Management
+### 2. Install Dependencies
 
-The application uses **JPA/Hibernate auto-generation** instead of manual SQL scripts:
-
-- **Development**: `spring.jpa.hibernate.ddl-auto=update` - Updates schema automatically
-- **Staging**: `spring.jpa.hibernate.ddl-auto=validate` - Validates existing schema
-- **Production**: `spring.jpa.hibernate.ddl-auto=validate` - Validates existing schema
-
-**Benefits**:
-- ✅ No manual schema maintenance
-- ✅ Entity-driven database design
-- ✅ Automatic index creation
-- ✅ Relationship management
-- ✅ Environment-specific strategies
-
-### 2. Environment Configuration
-
-The project supports multiple environments (development, staging, production) with separate configuration files.
-
-#### Quick Setup
 ```bash
-# Select development environment (recommended for local development)
-./select-profile.sh dev
-
-# Or use npm script
-npm run profile:dev
+mvn clean install
 ```
 
-#### Manual Setup
+### 3. Configure Environment
+
+Update environment files in `environments/` directory:
+
 ```bash
-# Copy environment template
-cp env.example .env
-
-# Or copy environment-specific file
-cp env.development .env
-
-# Edit with your actual values (NEVER commit .env files)
-nano .env
+# Edit configuration
+nano environments/env.local       # For local development
+nano environments/env.production  # For production
 ```
 
-#### 🔒 Security Note
-- **Never commit `.env` files** - they contain sensitive information
-- **Use `env.example`** as a template
-- **Set strong passwords** for all environments
-- **Use environment variables** for all sensitive configuration
-
-#### Environment-Specific Configuration
-- **Development**: `env.development` - Local development with verbose logging
-- **Staging**: `env.staging` - Pre-production testing environment  
-- **Production**: `env.production` - Production environment with optimized settings
+### 4. Run Tests
 
 ```bash
-# Database Configuration (Development) - Recommended approach
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=journal_index_dev
-DB_USERNAME=root
-DB_PASSWORD=your_password
+mvn test
+```
 
-# Alternative: Complete URL (will override individual components)
-# DB_URL=jdbc:mysql://localhost:3306/journal_index_dev?useSSL=false&serverTimezone=UTC
-DB_USERNAME=root
-DB_PASSWORD=dev_password_123
+### 5. Build
 
+```bash
+mvn clean package -DskipTests
+```
+
+### 6. Deploy
+
+```bash
+# Using deployment script (recommended)
+./scripts/deploy.sh production ap-south-1
+
+# Or manually
+source environments/env.production
+serverless deploy --stage production --region ap-south-1
+```
+
+---
+
+## Article Processing
+
+### Supported Message Types
+
+| Message Type | Description | Articles Per Message |
+|--------------|-------------|---------------------|
+| `Article` | Single article | 1 |
+| `ArticleBatch` | Batch of articles | Up to 50 |
+
+### Processing Logic
+
+**ArticleBatch Processing**:
+1. Receive 1 SQS message with 50 articles
+2. Process each article in independent transaction
+3. Continue on errors (failure isolation)
+4. Log success/error counts
+
+**Independent Transaction Benefits**:
+- ✅ If article #5 fails → Articles #1-4 already saved
+- ✅ Articles #6-50 continue processing normally
+- ✅ Maximum data persistence even with partial failures
+
+### Field Mapping
+
+| JSON Field | Database Column | Notes |
+|-----------|-----------------|-------|
+| `title` | `title_text` | Article title |
+| `description` | `abstract_text` | Article abstract |
+| `identifier` | `page_url` | Used for duplicate detection |
+| `date` | `published_at` | Parsed to LocalDateTime |
+| `subjects` | `keywords_text` | Comma-separated keywords |
+| `types[0]` | `article_type` | First type from array |
+| `sources[0]` | `pages` | Extracted page range (e.g., "39-50") |
+| `creator` | → `IndexJournalAuthor` | Split by comma/semicolon |
+
+---
+
+## SQS Message Format
+
+### ArticleBatch Message (Primary Format)
+
+```json
+{
+  "journalKey": "68653804af297",
+  "oaiUrl": "https://pjss.bzu.edu.pk/index.php/pjss",
+  "s3Url": "https://index-journal-files.s3.ap-south-1.amazonaws.com/...",
+  "s3Key": "2025/10/10/68653804af297-listrecords-page-1/...",
+  "s3Path": "s3://index-journal-files/...",
+  "s3FileName": "68653804af297-listrecords-page-1_20251010_153216.xml",
+  "messageType": "ArticleBatch",
+  "source": "scraping-service",
+  "pageNumber": 1,
+  "batchNumber": 2,
+  "totalBatches": 2,
+  "articlesInBatch": 50,
+  "totalArticlesInPage": 100,
+  "totalRecordsProcessed": 100,
+  "success": true,
+  "errorCode": null,
+  "errorMessage": null,
+  "timestamp": "2025-10-10T15:32:17.204Z",
+  
+  "articles": [
+    {
+      "journal_key": "68653804af297",
+      "created_at": "2025-10-10T15:32:17.134Z",
+      "type": "ListRecords",
+      "title": "Article Title Here",
+      "title_lang": "en-US",
+      "creator": "Author Name",
+      "subjects": ["Keyword 1", "Keyword 2"],
+      "description": "Article abstract...",
+      "description_lang": "en-US",
+      "publisher": "Publisher Name",
+      "publisher_lang": "en-US",
+      "date": "2022-06-15",
+      "types": ["info:eu-repo/semantics/article", "publishedVersion"],
+      "format": "application/pdf",
+      "identifier": "https://example.com/article/123",
+      "sources": ["Journal Vol. 30 No. 2 (2010); 219-233", "ISSN 2708-4175"],
+      "language": "eng",
+      "relation": "https://example.com/article/123/pdf",
+      "datestamp": "2022-06-15T09:45:26Z",
+      "setSpec": "journal:ART"
+    }
+    // ... up to 50 articles
+  ]
+}
+```
+
+---
+
+## Database Schema
+
+### Tables Created Automatically
+
+The system uses Hibernate's `ddl-auto=update` to create tables automatically:
+
+#### IndexJournal
+- Primary table for journal information
+- Key field: `journal_key` (unique)
+- Contains: website, publisher, status, etc.
+
+#### IndexJournalVolume
+- Journal volumes (e.g., "Vol. 30 No. 2")
+- Foreign key: `index_journal_id`
+- Key field: `volume_number`
+
+#### IndexJournalArticle
+- Individual articles
+- Foreign key: `index_journal_volume_id`
+- Unique constraint: `page_url`
+- Contains: title, abstract, keywords, DOI, dates, etc.
+
+#### IndexJournalAuthor
+- Article authors (one-to-many with articles)
+- Foreign key: `index_journal_article_id`
+- Contains: author name
+
+### Schema Management
+
+```properties
+# Configured in application.properties
+spring.jpa.hibernate.ddl-auto=update
+
+# Hibernate automatically:
+- Creates tables if they don't exist
+- Adds new columns when entities change
+- Preserves existing data
+- Never drops columns or tables
+```
+
+**Important**: For production, consider using Liquibase or Flyway for controlled migrations.
+
+---
+
+## Project Structure
+
+```
+JournalIndexIntegration/
+├── .github/workflows/              # CI/CD pipelines
+│   ├── build.yml                  # Build and test (PRs)
+│   └── ci-cd.yml                  # Deployment (master branch)
+├── environments/                   # Environment configuration
+│   ├── env.local                  # Local development settings
+│   └── env.production             # Production settings
+├── scripts/                        # Deployment scripts
+│   └── deploy.sh                  # Main deployment script
+├── src/
+│   ├── main/java/com/teckiz/journalindex/
+│   │   ├── LambdaHandler.java     # Main Lambda entry point
+│   │   ├── config/
+│   │   │   └── ApplicationConfig.java  # Spring & Hibernate config
+│   │   ├── entity/                # JPA entities
+│   │   │   ├── IndexJournal.java
+│   │   │   ├── IndexJournalVolume.java
+│   │   │   ├── IndexJournalArticle.java
+│   │   │   ├── IndexJournalAuthor.java
+│   │   │   └── ... (other entities)
+│   │   ├── model/                 # Data transfer objects
+│   │   │   ├── SqsArticleMessage.java
+│   │   │   ├── ArticleModel.java
+│   │   │   └── ArticleAuthorModel.java
+│   │   ├── repository/            # Spring Data JPA repositories
+│   │   │   ├── IndexJournalRepository.java
+│   │   │   ├── IndexJournalArticleRepository.java
+│   │   │   └── IndexJournalVolumeRepository.java
+│   │   └── service/               # Business logic
+│   │       ├── JsonArticleProcessor.java  # Main processing service
+│   │       └── OjsOaiXmlImporter.java     # Legacy XML support
+│   └── resources/
+│       ├── application.properties # Spring Boot config
+│       ├── application-local.properties
+│       └── log4j2.xml             # Logging configuration
+├── pom.xml                         # Maven dependencies
+├── serverless.yml                  # Serverless config
+└── README.md                       # This file
+```
+
+---
+
+## Environment Configuration
+
+### Available Environments
+
+- **local** - Development environment (`environments/env.local`)
+- **production** - Production environment (`environments/env.production`)
+
+### Environment File Structure
+
+```bash
 # AWS Configuration
-AWS_REGION=us-east-1
-SQS_QUEUE_NAME=journal-index-queue-dev
+SERVERLESS_DEPLOYMENT_BUCKET=teckiz-deployment-bucket
+AWS_REGION=ap-south-1
 
-# Application Configuration
-BATCH_SIZE=5
-MAX_RETRIES=2
+# Database Configuration
+DB_URL=jdbc:mysql://your-rds-endpoint:3306/database_name?useSSL=true&requireSSL=true
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+
+# SQS Configuration
+SQS_QUEUE_ARN=arn:aws:sqs:ap-south-1:xxx:journal-integration-queue
+SQS_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/xxx/journal-integration-queue
+
+# VPC Configuration (for RDS access)
+VPC_ID=vpc-xxxxxxxxx
+VPC_CIDR=10.0.0.0/16
+VPC_SECURITY_GROUP_ID=sg-xxxxxxxxx
+VPC_SUBNET_ID_1=subnet-xxxxxxxxx
+VPC_SUBNET_ID_2=subnet-yyyyyyyyy
+
+# Processing Configuration
+FUNCTION_TYPE=integration
+LOG_LEVEL=INFO
 ```
 
-### 3. Install Serverless Dependencies
-
-```bash
-npm install
-```
-
-### 4. Build the Project
-
-```bash
-mvn clean package
-```
+---
 
 ## Deployment
 
-### Serverless Framework Deployment (Recommended)
+### Prerequisites
 
-#### 1. Deploy All Functions
+- Java 17 (Amazon Corretto or OpenJDK)
+- Maven 3.8+
+- AWS CLI configured with credentials
+- Serverless Framework 4.x
+- Node.js 22+ (for Serverless Framework)
+
+### Deployment Options
+
+#### Option 1: Using Deployment Script (Recommended)
+
 ```bash
-# Deploy to development stage
-npm run deploy:dev
+# Deploy to production
+./scripts/deploy.sh production ap-south-1
 
-# Deploy to staging stage
-npm run deploy:staging
-
-# Deploy to production stage
-npm run deploy:prod
-
-# Or use serverless directly
-serverless deploy --stage dev
-serverless deploy --stage staging
-serverless deploy --stage prod
+# The script automatically:
+# 1. Validates environment configuration
+# 2. Checks prerequisites
+# 3. Runs Maven build
+# 4. Deploys to AWS
+# 5. Verifies deployment
 ```
 
-#### 2. Deploy Individual Functions
-```bash
-# Deploy only CreatorCommand
-serverless deploy function -f creatorCommand
+#### Option 2: Manual Deployment
 
-# Deploy only ImportCommand
-serverless deploy function -f importCommand
-
-# Deploy only Health Check
-serverless deploy function -f healthCheck
-```
-
-#### 3. View Deployment Status
-```bash
-# Check deployment status
-serverless info
-
-# View function logs
-npm run logs:creator
-npm run logs:importer
-```
-
-### Manual AWS CLI Deployment (Alternative)
-
-#### 1. Deploy CreatorCommand Lambda
 ```bash
 # Build JAR
-mvn clean package
+mvn clean package -DskipTests
 
-# Deploy using AWS CLI
-aws lambda create-function \
-  --function-name journal-index-creator \
-  --runtime java11 \
-  --role arn:aws:iam::account:role/lambda-execution-role \
-  --handler com.teckiz.journalindex.LambdaHandler \
-  --zip-file fileb://target/journal-index-integration-1.0.0.jar \
-  --timeout 300 \
-  --memory-size 512
+# Load environment variables
+set -a
+source environments/env.production
+set +a
+
+# Deploy
+serverless deploy --stage production --region ap-south-1
 ```
 
-#### 2. Deploy ImportCommand Lambda
+#### Option 3: Using GitHub Actions
+
+Push to `master` branch triggers automatic deployment:
+1. Lint and format checks
+2. Run tests with coverage
+3. Security scanning
+4. SonarCloud analysis
+5. Build JAR
+6. Deploy to AWS
+7. Verify deployment
+
+### Post-Deployment
+
 ```bash
-aws lambda create-function \
-  --function-name journal-index-importer \
-  --runtime java11 \
-  --role arn:aws:iam::account:role/lambda-execution-role \
-  --handler com.teckiz.journalindex.ImportCommandLambdaHandler \
-  --zip-file fileb://target/journal-index-integration-1.0.0.jar \
-  --timeout 180 \
-  --memory-size 256
-```
-
-#### 3. Configure SQS Trigger
-```bash
-# Create SQS trigger for CreatorCommand
-aws lambda create-event-source-mapping \
-  --event-source-arn arn:aws:sqs:region:account:queue-name \
-  --function-name journal-index-creator \
-  --batch-size 1
-```
-
-#### 4. Schedule ImportCommand
-```bash
-# Create CloudWatch Events rule for ImportCommand
-aws events put-rule \
-  --name journal-index-importer-schedule \
-  --schedule-expression "rate(5 minutes)"
-
-# Add Lambda target
-aws events put-targets \
-  --rule journal-index-importer-schedule \
-  --targets "Id"="1","Arn"="arn:aws:lambda:region:account:function:journal-index-importer"
-```
-
-#### 5. Set Environment Variables
-```bash
-aws lambda update-function-configuration \
-  --function-name journal-index-creator \
-  --environment Variables='{
-    "DB_URL":"jdbc:mysql://your-rds-endpoint:3306/journal_index",
-    "DB_USERNAME":"your_username",
-    "DB_PASSWORD":"your_password",
-    "AWS_REGION":"us-east-1"
-  }'
-```
-
-### Serverless Management Commands
-
-#### Testing Functions
-```bash
-# Test CreatorCommand
-npm run invoke:creator
-
-# Test ImportCommand
-npm run invoke:importer
-
-# Test Health Check
-npm run invoke:health
+# View deployment info
+serverless info --stage production --region ap-south-1
 
 # View logs
-npm run logs:creator
-npm run logs:importer
+aws logs tail /aws/lambda/journal-index-integration-production-processor --follow
+
+# Test the function
+serverless invoke --function journalProcessor --stage production
 ```
 
-#### Development
-```bash
-# Start local serverless offline
-npm run offline
+---
 
-# Validate serverless configuration
-npm run validate
+## Testing
 
-# Remove deployed stack
-npm run remove
-```
+### Test Coverage
 
-### Local Testing
+Current test suite includes:
 
-1. **Start MySQL**:
-   ```bash
-   docker run --name mysql-journal -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=journal_index -p 3306:3306 -d mysql:8.0
-   ```
+- **Integration tests** for Lambda handler
+- **Unit tests** for OAI XML parsing
+- **JaCoCo code coverage** reporting
 
-2. **Run Tests**:
-   ```bash
-   mvn test
-   ```
-
-3. **Run Locally with Serverless Offline**:
-   ```bash
-   npm run offline
-   ```
-
-4. **Run Locally** (for testing):
-   ```bash
-   java -jar target/journal-index-integration-1.0.0.jar
-   ```
-
-## Usage
-
-### Sending Messages to SQS
-
-Send a message to the SQS queue with a website URL:
+### Running Tests
 
 ```bash
-aws sqs send-message \
-  --queue-url https://sqs.us-east-1.amazonaws.com/123456789012/journal-index-queue \
-  --message-body "https://example.com"
+# Run all tests
+mvn test
+
+# Run with coverage report
+mvn clean test jacoco:report
+
+# View coverage report
+open target/site/jacoco/index.html
+
+# Skip tests during build
+mvn package -DskipTests
 ```
 
-### Message Format
-
-The SQS message should contain JSON with `url` and `journal_key`:
-
-```json
-{
-  "url": "https://example.com/journal",
-  "journal_key": "JRN_123456789"
-}
-```
-
-### Example Usage
-
-```bash
-aws sqs send-message \
-  --queue-url https://sqs.us-east-1.amazonaws.com/123456789012/journal-index-queue \
-  --message-body '{"url":"https://example.com/index.php/journal","journal_key":"JRN_123456789"}'
-```
-
-## Configuration
-
-### Database Configuration
-
-The application uses a comprehensive set of database entities:
-
-#### Core Entities (12 Total)
-
-1. **Company** (`company`)
-   - Main organization entity with company information
-   - Self-referencing relationship (master/sub companies)
-   - Company settings, address, and contact information
-
-2. **IndexJournal** (`indexJournal`)
-   - Main journal entity with journal metadata
-   - Journal identification (ISSN, title, publisher)
-   - Status management and review process tracking
-
-3. **IndexJournalSubject** (`indexJournalSubject`)
-   - Journal subject/category management
-   - Company-specific subjects with active/inactive status
-
-4. **IndexJournalLanguage** (`indexJournalLanguage`)
-   - Language support for journals
-   - Primary language designation and language codes
-
-5. **IndexCountry** (`indexCountry`)
-   - Country information management
-   - ISO codes support and company-specific countries
-
-6. **IndexLanguage** (`indexLanguage`)
-   - Language information management
-   - Language codes (A and B) and company-specific languages
-
-7. **IndexJournalSetting** (`indexJournalSetting`)
-   - Journal-specific settings including OAI endpoints
-   - Harvest settings and error tracking
-
-8. **IndexJournalArticle** (`indexJournalArticle`)
-   - Journal article information with DOI support
-   - Article metadata (title, abstract, keywords, references)
-
-9. **IndexJournalVolume** (`indexJournalVolume`)
-   - Journal volume and issue information
-   - Volume/issue number tracking and cover image support
-
-10. **IndexJournalAuthor** (`indexJournalAuthor`)
-    - Author information and affiliations
-    - ORCID support and biography tracking
-
-11. **IndexRelatedMedia** (`indexRelatedMedia`)
-    - Related media file management
-    - MIME type support and reference key tracking
-
-12. **IndexJournalPage** (`indexJournalPage`)
-    - Journal-specific pages (editorial board, guidelines)
-    - Page type constants and URL management
-
-13. **IndexImportQueue** (`indexImportQueue`)
-    - Import queue for processing data
-    - System type support (OJS, DOAJ, Teckiz)
-    - Processing status tracking
-
-#### Legacy Tables (for backward compatibility)
-- **journals**: Legacy journal storage
-- **journal_records**: Individual OAI records
-- **harvest_logs**: Harvesting activity logs
-- **oai_endpoints**: Discovered OAI endpoints
-
-### IndexImportQueue Data Storage
-
-The `data` column stores complete API responses:
-
-**OJS OAI Identify**:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
-  <responseDate>2024-01-01T00:00:00Z</responseDate>
-  <request verb="Identify">https://example.com/oai</request>
-  <Identify>
-    <repositoryName>Example Journal Repository</repositoryName>
-    <baseURL>https://example.com/oai</baseURL>
-  </Identify>
-</OAI-PMH>
-```
-
-**DOAJ Response**:
-```json
-{
-  "id": "123456789",
-  "title": "Journal Title",
-  "issn": "1234-5678",
-  "eissn": "9876-5432",
-  "publisher": "Publisher Name",
-  "subjects": ["Computer Science"],
-  "languages": ["English"],
-  "country": "US"
-}
-```
-
-### OAI Configuration
-
-- **Default Metadata Prefix**: `oai_dc`
-- **Batch Size**: 100 records per request
-- **Timeout**: 30 seconds
-
-### Error Handling
-
-- **Max Retries**: 3 attempts
-- **Retry Delay**: 5 seconds
-- **Dead Letter Queue**: Failed messages are logged and can be sent to a DLQ
+---
 
 ## Monitoring
 
 ### CloudWatch Logs
 
-The application logs to CloudWatch with the following log groups:
-- `/aws/lambda/journal-index-creator` - CreatorCommand processing logs
-- `/aws/lambda/journal-index-importer` - ImportCommand processing logs
+```bash
+# View real-time logs
+aws logs tail /aws/lambda/journal-index-integration-production-processor --follow
 
-### Database Monitoring
+# Filter errors only
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/journal-index-integration-production-processor \
+  --filter-pattern "ERROR"
 
-Monitor the following tables for processing status:
-- `IndexImportQueue` - Import queue status and processing
-- `IndexJournal` - Journal metadata and status
-- `harvest_logs` - Processing status and timing (legacy)
-- `journal_records` - Individual record processing (legacy)
+# View specific time range
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/journal-index-integration-production-processor \
+  --start-time $(date -u -d '1 hour ago' +%s)000
+```
 
-### Key Metrics to Monitor
+### Key Log Messages
 
-#### CreatorCommand Metrics
-- **SQS Messages Processed**: Count of messages handled
-- **System Type Distribution**: Breakdown by detected system (OJS, DOAJ, Teckiz)
-- **API Response Times**: Performance of external APIs
-- **Queue Creation Rate**: IndexImportQueue entries created
+**Successful Batch Processing**:
+```
+Processing article batch from JSON message
+Journal Key: 68653804af297
+Message Type: ArticleBatch
+Batch Number: 1/2
+Articles in Batch: 50
+Processing article 1/50 in batch
+Processing article: Article Title Here
+Using journal ID: 123
+Using volume ID: 456
+✅ Article saved with ID: 7890
+✅ Saved 1 authors
+Processing article 2/50 in batch
+...
+Batch processed: 50 success, 0 errors out of 50 articles
+```
 
-#### ImportCommand Metrics
-- **Queue Processing Rate**: Entries processed per minute
-- **Success/Failure Rate**: Processing success percentage
-- **Processing Time**: Time per queue entry
-- **Database Operations**: Entity creation/updates
+**Error Handling Example**:
+```
+Processing article 5/50 in batch
+Error processing article 5/50: Data too long for column 'article_key'
+Processing article 6/50 in batch
+...
+Batch processed: 49 success, 1 errors out of 50 articles
+```
+
+### CloudWatch Metrics
+
+Monitor these key metrics:
+
+| Metric | What to Watch |
+|--------|---------------|
+| **Invocations** | Number of Lambda executions |
+| **Errors** | Failed executions (should be near zero) |
+| **Duration** | Processing time (typically 500-2000ms for 50 articles) |
+| **InitDuration** | Cold start time (<1s with SnapStart!) |
+| **Database Connections** | HikariCP pool metrics |
+| **SQS Messages** | Queue depth and age |
+
+---
+
+## Database Schema
+
+### Auto-Creation Process
+
+On first deployment, Hibernate automatically creates all tables:
+
+```sql
+-- Tables created automatically by Hibernate:
+
+CREATE TABLE Company (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  company_name VARCHAR(255),
+  -- ... other fields
+);
+
+CREATE TABLE IndexJournal (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  journal_key VARCHAR(255) UNIQUE,
+  website VARCHAR(500),
+  publisher VARCHAR(500),
+  status VARCHAR(50),
+  company_id BIGINT,
+  -- ... other fields
+  FOREIGN KEY (company_id) REFERENCES Company(id)
+);
+
+CREATE TABLE IndexJournalVolume (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  index_journal_id BIGINT NOT NULL,
+  volume_number VARCHAR(50),
+  -- ... other fields
+  FOREIGN KEY (index_journal_id) REFERENCES IndexJournal(id)
+);
+
+CREATE TABLE IndexJournalArticle (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  index_journal_volume_id BIGINT,
+  title_text TEXT,
+  abstract_text TEXT,
+  page_url VARCHAR(500) UNIQUE,
+  published_at DATETIME,
+  keywords_text TEXT,
+  pages VARCHAR(50),
+  doi VARCHAR(255),
+  article_type VARCHAR(100),
+  -- ... other fields
+  FOREIGN KEY (index_journal_volume_id) REFERENCES IndexJournalVolume(id)
+);
+
+CREATE TABLE IndexJournalAuthor (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  index_journal_article_id BIGINT NOT NULL,
+  name VARCHAR(500),
+  -- ... other fields
+  FOREIGN KEY (index_journal_article_id) REFERENCES IndexJournalArticle(id)
+);
+```
+
+### Repository Methods
+
+```java
+// Find journal by unique key
+Optional<IndexJournal> findByJournalKey(String journalKey);
+
+// Find article by URL (duplicate detection)
+Optional<IndexJournalArticle> findByPageURL(String pageUrl);
+
+// Find volume by journal and number
+Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(
+    Long journalId, 
+    String volumeNumber
+);
+```
+
+---
+
+## Configuration Details
+
+### Lambda Configuration
+
+```yaml
+# serverless.yml
+functions:
+  journalProcessor:
+    handler: com.teckiz.journalindex.LambdaHandler
+    runtime: java17
+    memorySize: 2048       # Higher memory = more CPU
+    timeout: 900           # 15 minutes max
+    snapStart: true        # Fast cold starts!
+    vpc:
+      securityGroupIds:
+        - ${env:VPC_SECURITY_GROUP_ID}
+      subnetIds:
+        - ${env:VPC_SUBNET_ID_1}
+        - ${env:VPC_SUBNET_ID_2}
+    events:
+      - sqs:
+          arn: ${env:SQS_QUEUE_ARN}
+          batchSize: 1     # Process 1 SQS message at a time
+          functionResponseType: ReportBatchItemFailures
+```
+
+### Spring Boot Configuration
+
+```properties
+# application.properties
+
+# Database
+spring.datasource.url=${DB_URL}
+spring.datasource.username=${DB_USER}
+spring.datasource.password=${DB_PASSWORD}
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+
+# HikariCP Connection Pool
+spring.datasource.hikari.maximum-pool-size=5
+spring.datasource.hikari.minimum-idle=1
+spring.datasource.hikari.connection-timeout=30000
+spring.datasource.hikari.idle-timeout=600000
+spring.datasource.hikari.max-lifetime=1800000
+```
+
+### Logging Configuration
+
+```xml
+<!-- log4j2.xml -->
+<Configuration status="ERROR">
+  <Appenders>
+    <Console name="Lambda" target="SYSTEM_OUT">
+      <PatternLayout>
+        <Pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1} - %m%n</Pattern>
+      </PatternLayout>
+    </Console>
+  </Appenders>
+  
+  <Loggers>
+    <Root level="INFO">
+      <AppenderRef ref="Lambda"/>
+    </Root>
+    
+    <!-- Reduce framework noise -->
+    <Logger name="org.springframework" level="WARN"/>
+    <Logger name="org.hibernate" level="WARN"/>
+    <Logger name="com.zaxxer.hikari" level="WARN"/>
+  </Loggers>
+</Configuration>
+```
+
+---
+
+## Performance
+
+### Current Metrics
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| **JAR Size** | 36 MB | Optimized with dependency exclusions |
+| **Cold Start** | <1s | With SnapStart enabled |
+| **Warm Start** | <100ms | Typical invocation |
+| **Batch Processing** | 50 articles | 500-2000ms depending on DB |
+| **Memory Usage** | ~1GB | With 2GB allocated |
+| **Database Connections** | 1-5 | HikariCP pool |
+
+### Configuration by Environment
+
+| Setting | Local | Production |
+|---------|-------|------------|
+| Memory | 2048 MB | 2048 MB |
+| Timeout | 900s (15 min) | 900s (15 min) |
+| SQS Batch Size | 1 message | 1 message |
+| Articles per Message | 50 | 50 |
+| SnapStart | Enabled | Enabled |
+| VPC | Yes | Yes |
+| Log Retention | 7 days | 30 days |
+
+### Optimization Highlights
+
+**JAR Size Reduction**:
+- Excluded Spring Boot web components
+- Excluded unnecessary Spring Data metrics
+- Excluded JAXB from Hibernate
+- Excluded Protobuf from MySQL connector
+- Removed transitive logging dependencies
+
+**Result**: **47MB → 36MB** (23% reduction)
+
+### Performance Tips
+
+1. **Database**: Use RDS Proxy for connection pooling
+2. **Memory**: 2GB gives more CPU allocation
+3. **SnapStart**: Enabled for sub-second cold starts
+4. **Batch Size**: 1 SQS message = 50 articles (optimal)
+5. **Transactions**: Independent per article for max throughput
+
+---
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **OAI Endpoint Not Found**:
-   - Check if the website supports OAI-PMH
-   - Verify the URL format and accessibility
+#### 1. Table Doesn't Exist
 
-2. **Database Connection Issues**:
-   - Verify database credentials and connection string
-   - Check network connectivity and security groups
+**Error**: `Table 'database.IndexJournalArticle' doesn't exist`
 
-3. **SQS Message Processing**:
-   - Check Lambda function logs in CloudWatch
-   - Verify SQS queue permissions
+**Solution**: Ensure `spring.jpa.hibernate.ddl-auto=update` is set in `application.properties`
 
-### Logs
-
-Check the following log levels for debugging:
-- `INFO`: General processing information
-- `DEBUG`: Detailed SQL and HTTP operations
-- `ERROR`: Error conditions and stack traces
-
-## Benefits of Two-Command Architecture
-
-### Scalability
-- **Independent Scaling**: Each Lambda can scale based on its workload
-- **Resource Optimization**: Different memory/timeout requirements
-- **Parallel Processing**: Multiple import processes can run simultaneously
-
-### Reliability
-- **Fault Isolation**: Failures in one step don't affect the other
-- **Retry Logic**: Failed imports can be retried without re-fetching data
-- **Data Persistence**: Raw data is preserved in IndexImportQueue
-
-### Maintainability
-- **Clear Separation**: Each service has a single responsibility
-- **Independent Deployment**: Services can be updated separately
-- **Easier Testing**: Each component can be tested in isolation
-
-## Project Structure
-
-```
-/Users/aziz.clipsource/Sites/JournalIndexIntegration/
-├── src/
-│   ├── main/
-│   │   ├── java/com/teckiz/journalindex/
-│   │   │   ├── config/           # Spring configuration classes
-│   │   │   ├── entity/           # JPA entities (13 entities)
-│   │   │   ├── repository/       # Spring Data JPA repositories
-│   │   │   ├── service/          # Business logic services (7 services)
-│   │   │   ├── parser/           # OAI data parsing utilities
-│   │   │   ├── LambdaHandler.java           # CreatorCommand Lambda
-│   │   │   ├── ImportCommandLambdaHandler.java  # ImportCommand Lambda
-│   │   │   └── JournalIndexRoute.java       # Camel routes
-│   │   └── resources/
-│   │       ├── application.properties  # Base configuration
-│   │       ├── application-dev.properties  # Development profile
-│   │       ├── application-staging.properties  # Staging profile
-│   │       └── application-prod.properties  # Production profile
-│   └── test/
-│       ├── java/                  # Test classes
-│       └── resources/             # Test resources
-├── pom.xml                       # Maven configuration
-├── README.md                     # Project documentation
-├── deploy.sh                     # Deployment script
-├── docker-compose.yml            # Docker configuration
-└── Dockerfile                    # Docker image definition
+```properties
+spring.jpa.hibernate.ddl-auto=update
 ```
 
-## Development
+#### 2. Database Connection Timeout
 
-### Adding New OAI Metadata Formats
+**Error**: `Communications link failure`
 
-1. Update the `OaiDataParser` class
-2. Add new parsing logic for the metadata format
-3. Update the database schema if needed
+**Solutions**:
+- Check VPC security group allows MySQL (port 3306)
+- Verify Lambda is in correct VPC subnets
+- Confirm RDS security group allows Lambda security group
+- Check database endpoint and credentials
 
-### Customizing Data Processing
+#### 3. SnapStart Optimization Off
 
-1. Modify the `OaiHarvestService` class
-2. Update the Camel routes in `JournalIndexRoute`
-3. Add new database fields as needed
+**Check**: 
+```bash
+aws lambda get-function --function-name journal-index-integration-production-processor:32
+```
 
-### Adding New System Types
+**Should show**: `"OptimizationStatus": "On"`
 
-1. Add detection logic in `JournalIndexRoute`
-2. Create new importer service (e.g., `CustomSystemImporter`)
-3. Update `IndexQueueImporter` to route to new importer
-4. Add system-specific parsing logic
+If "Off", redeploy or publish new version.
 
-## Future Enhancements
+#### 4. Transaction Rollback Errors
 
-### CreatorCommand Improvements
-- **Caching**: Cache frequently accessed OAI endpoints
-- **Rate Limiting**: Respect API rate limits
-- **Data Validation**: Validate data before saving to queue
+**Error**: `Transaction silently rolled back`
 
-### ImportCommand Improvements
-- **Batch Processing**: Process multiple entries in one Lambda invocation
-- **Data Transformation**: More sophisticated data mapping
-- **Error Recovery**: Advanced retry and error handling strategies
+**Cause**: Multiple `@Transactional` annotations nesting
 
-### Additional System Support
-- **Crossref**: Support for Crossref API
-- **PubMed**: Support for PubMed/PMC
-- **Custom APIs**: Configurable API endpoints
+**Solution**: Ensure only `processArticleData()` has `@Transactional`, not `processBatch()`
+
+#### 5. Null ID in Entity Error
+
+**Error**: `null id in com.teckiz.journalindex.entity.IndexJournalArticle entry`
+
+**Cause**: Hibernate session corrupted by failed transaction
+
+**Solution**: Remove `@Transactional` from batch method (already fixed)
+
+#### 6. Log4j2 Format Errors
+
+**Error**: `Unrecognized format specifier [d]`
+
+**Cause**: Conflicting logging configurations
+
+**Solution**: Proper Log4j2 pattern in `log4j2.xml` (already configured)
+
+#### 7. Data Too Long for Column
+
+**Error**: `Data truncation: Data too long for column 'article_key'`
+
+**Solution**: 
+- Check database column size
+- Article continues processing (error isolation working!)
+- Increase column size if needed: `ALTER TABLE IndexJournalArticle MODIFY article_key VARCHAR(500);`
+
+---
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflows
+
+#### Build Workflow (`.github/workflows/build.yml`)
+- **Triggered on**: Pull requests to master, develop, integration-work-flow
+- **Steps**:
+  1. Lint and format check
+  2. Run tests with JaCoCo coverage
+  3. Security scan with Trivy
+  4. Build verification
+
+#### CI/CD Workflow (`.github/workflows/ci-cd.yml`)
+- **Triggered on**: Push to `master` branch
+- **Steps**:
+  1. Lint and format check
+  2. Run tests with coverage
+  3. Security scan
+  4. SonarCloud analysis
+  5. Build JAR
+  6. Deploy to AWS production
+  7. Verify deployment
+  8. Post-deployment checks
+
+### Required GitHub Secrets
+
+```
+# AWS Credentials
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
+
+# Serverless
+SERVERLESS_ACCESS_KEY
+SERVERLESS_DEPLOYMENT_BUCKET
+
+# Database
+DB_URL
+DB_USER
+DB_PASSWORD
+
+# SQS
+SQS_QUEUE_ARN
+SQS_QUEUE_URL
+
+# VPC
+VPC_ID
+VPC_CIDR
+VPC_SECURITY_GROUP_ID
+VPC_SUBNET_ID_1
+VPC_SUBNET_ID_2
+
+# SonarCloud (Optional)
+SONAR_TOKEN
+SONAR_PROJECT_KEY
+SONAR_ORGANIZATION
+```
+
+---
+
+## Advanced Topics
+
+### Batch Processing Details
+
+**Lambda receives**: 1 SQS message  
+**Message contains**: 50 articles  
+**Processing**:
+```java
+for (int i = 0; i < 50; i++) {
+    @Transactional
+    processArticleData(article[i]);  // Independent transaction
+}
+```
+
+**Benefits**:
+- Article #1 fails → Rolled back independently
+- Articles #2-50 → Continue normally
+- Maximum data persistence
+
+### Volume Extraction
+
+From source string: `"Pakistan Journal; Vol. 30 No. 2 (2010); 219-233"`
+
+**Extracted**:
+- Volume: `"30"`
+- Pages: `"219-233"`
+
+**Regex patterns**:
+```java
+// Volume: "Vol. 30" or "Volume 30"
+Pattern.compile("Vol\\.?\\s*(\\d+)", CASE_INSENSITIVE)
+
+// Pages: "219-233"
+Pattern.compile("(\\d+)-(\\d+)")
+```
+
+### Date Parsing
+
+Supports multiple formats:
+```java
+// ISO date: "2022-06-15"
+LocalDateTime.parse("2022-06-15T00:00:00")
+
+// ISO timestamp: "2025-10-10T15:32:17.134Z"
+LocalDateTime.parse("2025-10-10T15:32:17")
+
+// Year only: "2009"
+LocalDateTime.parse("2009-01-01T00:00:00")
+```
+
+### Author Parsing
+
+From creator string: `"Smith, John; Doe, Jane; Brown, Bob"`
+
+**Split by**: Comma (`,`) or semicolon (`;`)  
+**Result**: 3 separate `IndexJournalAuthor` records
+
+---
+
+## Batch Processing Example
+
+### Input: 1 SQS Message
+
+```json
+{
+  "messageType": "ArticleBatch",
+  "journalKey": "68653804af297",
+  "articlesInBatch": 50,
+  "articles": [ /* 50 article objects */ ]
+}
+```
+
+### Processing Flow
+
+```
+1. Parse SQS message
+2. Validate journalKey and messageType
+3. Loop through 50 articles:
+   
+   Article #1:
+   ├─ Start transaction
+   ├─ Find/Create journal
+   ├─ Find/Create volume
+   ├─ Check for duplicate (by URL)
+   ├─ Save article
+   ├─ Parse & save authors
+   └─ Commit transaction ✅
+   
+   Article #2:
+   ├─ Start NEW transaction
+   ├─ ... (same steps)
+   └─ Commit transaction ✅
+   
+   Article #5:
+   ├─ Start NEW transaction
+   ├─ ... (processing)
+   └─ ERROR! Rollback ❌ (only #5)
+   
+   Article #6:
+   ├─ Start NEW transaction (continues!)
+   ├─ ... (same steps)
+   └─ Commit transaction ✅
+   
+   ... articles #7-50 continue normally
+
+4. Return: "Batch processed: 49 success, 1 errors out of 50 articles"
+```
+
+### Database Impact
+
+**Before (single transaction for batch)**:
+- Article #5 fails → **All 50 articles rolled back**
+- Database writes: **0 articles**
+
+**After (independent transactions)**:
+- Article #5 fails → **Only #5 rolled back**
+- Database writes: **49 articles saved** ✅
+
+---
+
+## Integration with Scraping Service
+
+### Message Flow
+
+```
+Scraping Service (Node.js)
+         ↓
+  Sends ArticleBatch to SQS
+  (50 articles per message)
+         ↓
+Integration Service (This - Java)
+         ↓
+   Saves to MySQL Database
+```
+
+### Compatibility
+
+This service is compatible with:
+- **IndexJournalsDataScraping** v1.0.2+ (with batching)
+- **IndexJournalsDataScraping** v1.0.1 (single article messages)
+
+Both message types are supported:
+- `messageType: "Article"` → Single article
+- `messageType: "ArticleBatch"` → Batch of 50 articles
+
+---
+
+## Development Workflow
+
+### Local Development
+
+```bash
+# 1. Setup
+git clone <repository>
+cd JournalIndexIntegration
+mvn clean install
+
+# 2. Configure local environment
+cp environments/env.local environments/env.local.custom
+nano environments/env.local.custom
+# Update with your local database and AWS settings
+
+# 3. Run tests
+mvn test
+
+# 4. Build
+mvn clean package
+
+# 5. Deploy to local
+source environments/env.local.custom
+serverless deploy --stage local --region ap-south-1
+```
+
+### Making Changes
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/your-feature
+
+# 2. Make changes
+
+# 3. Run tests
+mvn test
+
+# 4. Build
+mvn clean package -DskipTests
+
+# 5. Commit
+git add .
+git commit -m "feat: your feature description"
+
+# 6. Push and create PR
+git push origin feature/your-feature
+```
+
+---
+
+## Scripts Reference
+
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `./scripts/deploy.sh [stage] [region]` | Full deployment workflow |
+| `mvn clean` | Clean build artifacts |
+| `mvn test` | Run all tests |
+| `mvn package` | Build JAR file |
+| `mvn clean package -DskipTests` | Quick build without tests |
+
+### Deployment Script Usage
+
+```bash
+# Full deployment with all checks
+./scripts/deploy.sh production ap-south-1
+
+# What it does:
+# - Validates environment configuration
+# - Checks Java 17, Maven, Serverless CLI
+# - Runs Maven tests
+# - Builds optimized JAR (36MB)
+# - Deploys to AWS Lambda
+# - Verifies function is running
+# - Shows deployment summary
+```
+
+---
+
+## Security
+
+### Best Practices
+
+- ✅ **VPC Isolation**: Lambda runs in private subnets
+- ✅ **Least Privilege IAM**: Minimal required permissions
+- ✅ **Database Encryption**: RDS encryption at rest
+- ✅ **TLS/SSL**: All database connections encrypted
+- ✅ **No Secrets in Code**: All credentials in environment variables
+- ✅ **CloudWatch Monitoring**: All actions logged
+- ✅ **Security Scanning**: Trivy scans in CI/CD
+
+### IAM Permissions Required
+
+```yaml
+# Minimal IAM permissions for Lambda:
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+- sqs:ReceiveMessage
+- sqs:DeleteMessage
+- sqs:GetQueueAttributes
+- ec2:CreateNetworkInterface
+- ec2:DescribeNetworkInterfaces
+- ec2:DeleteNetworkInterface
+```
+
+---
+
+## Architecture Decisions
+
+### Why Spring Boot (No Apache Camel)?
+
+**Previous**: Used Apache Camel for routing  
+**Current**: Pure Spring Boot  
+
+**Benefits**:
+- **Smaller JAR**: 47MB → 36MB (23% reduction)
+- **Simpler**: Less framework overhead
+- **Faster**: No Camel context initialization
+- **Clearer**: Direct Spring service calls
+
+### Why Independent Transactions?
+
+**Problem**: Batch transaction failed if one article had error  
+**Solution**: Each article in own transaction  
+
+**Code**:
+```java
+// processBatch() - NO @Transactional
+public String processBatch(SqsArticleMessage message) {
+    for (Article article : message.getArticles()) {
+        processArticleData(article);  // Has @Transactional
+    }
+}
+
+// processArticleData() - HAS @Transactional
+@Transactional
+private void processArticleData(...) {
+    // Save article in independent transaction
+}
+```
+
+### Why SnapStart?
+
+**Without SnapStart**:
+- Cold start: **8-12 seconds**
+- Slow Spring/Hibernate initialization
+
+**With SnapStart**:
+- Cold start: **<1 second** ✅
+- Pre-initialized snapshot restored instantly
+
+**Configuration**:
+```yaml
+snapStart: true
+```
+
+---
+
+## Quick Reference
+
+### Essential Commands
+
+```bash
+# Build and Test
+mvn clean install          # Full build with tests
+mvn clean package -DskipTests  # Quick build
+mvn test                   # Run tests only
+
+# Deployment
+./scripts/deploy.sh production ap-south-1  # Deploy to production
+serverless deploy --stage production       # Direct deploy
+serverless remove --stage production       # Remove deployment
+
+# Monitoring
+aws logs tail /aws/lambda/journal-index-integration-production-processor --follow
+serverless info --stage production
+aws lambda get-function --function-name journal-index-integration-production-processor
+
+# Database
+mysql -h your-rds-endpoint -u user -p database_name
+SELECT COUNT(*) FROM IndexJournalArticle;
+SELECT * FROM IndexJournalArticle ORDER BY id DESC LIMIT 10;
+```
+
+### Environment Files
+
+- `environments/env.local` - Local development
+- `environments/env.production` - Production deployment
+
+### AWS Resources Created
+
+| Resource | Name Pattern |
+|----------|-------------|
+| Lambda Function | `journal-index-integration-{stage}-processor` |
+| CloudWatch Log Group | `/aws/lambda/journal-index-integration-{stage}-processor` |
+| IAM Role | Auto-generated by Serverless Framework |
+| Event Source Mapping | Auto-generated (Lambda ↔ SQS) |
+
+**Example for production**:
+- Function: `journal-index-integration-production-processor`
+- Log Group: `/aws/lambda/journal-index-integration-production-processor`
+
+---
+
+## Related Services
+
+### IndexJournalsDataScraping
+
+The scraping service that sends messages to this integration service:
+- **Technology**: Node.js 22, Serverless
+- **Function**: Scrapes OAI-PMH endpoints
+- **Output**: ArticleBatch messages (50 articles each)
+- **Repository**: `../IndexJournalsDataScraping`
+
+### Message Contract
+
+Both services must agree on message format (see [SQS Message Format](#sqs-message-format))
+
+---
+
+## Support & Maintenance
+
+### Getting Help
+
+1. **Check Logs**: CloudWatch logs for detailed execution traces
+2. **Run Tests**: `mvn test` to verify functionality
+3. **Check Status**: `serverless info` for deployment details
+4. **Review Config**: Verify `environments/env.production` settings
+5. **Monitor Metrics**: Check CloudWatch dashboard
+
+### Common Maintenance Tasks
+
+```bash
+# Update dependencies
+mvn versions:display-dependency-updates
+mvn versions:use-latest-releases
+
+# Redeploy after changes
+mvn clean package -DskipTests
+./scripts/deploy.sh production ap-south-1
+
+# View recent logs
+aws logs tail /aws/lambda/journal-index-integration-production-processor --since 1h
+
+# Check database
+mysql -h endpoint -u user -p -e "SELECT COUNT(*) FROM IndexJournalArticle"
+
+# Update Lambda environment variables
+aws lambda update-function-configuration \
+  --function-name journal-index-integration-production-processor \
+  --environment Variables="{LOG_LEVEL=DEBUG}"
+```
+
+---
+
+## Version
+
+**Current Version**: 1.0.0
+
+### Changelog
+
+**v1.0.0** (Latest)
+- ✅ Implemented ArticleBatch processing (50 articles per message)
+- ✅ Independent transaction per article for error isolation
+- ✅ Removed Apache Camel (pure Spring Boot)
+- ✅ Removed S3 SDK (direct JSON from SQS)
+- ✅ Added SnapStart for <1s cold starts
+- ✅ Updated all libraries to latest stable versions
+- ✅ JAR size optimized to 36MB
+- ✅ Fixed Log4j2 configuration
+- ✅ Auto schema management with Hibernate
+- ✅ Duplicate detection by article URL
+- ✅ Volume extraction from sources
+- ✅ Author parsing and relationship management
+
+---
+
+## Technical Details
+
+### Message Type Routing
+
+```java
+// LambdaHandler routes based on messageType
+if ("Article".equalsIgnoreCase(messageType)) {
+    processor.processArticle(message);  // Single article
+} else if ("ArticleBatch".equalsIgnoreCase(messageType)) {
+    processor.processBatch(message);    // 50 articles
+}
+```
+
+### Processing Limits
+
+- Max articles per batch: **50**
+- Max SQS messages per invocation: **1** (configurable via `batchSize`)
+- Lambda timeout: **900 seconds** (15 minutes)
+- Lambda memory: **2048 MB**
+- Database connections: **5** (HikariCP pool)
+
+### Error Handling Strategy
+
+The system uses **fail-soft** approach:
+
+1. **Article Level**: Individual article failures don't affect batch
+2. **Batch Level**: Batch processing continues on individual errors
+3. **Lambda Level**: Returns partial success with error counts
+4. **SQS Level**: Uses `ReportBatchItemFailures` for selective retry
+
+**Result**: Maximum data persistence even with partial failures! 🎯
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - See LICENSE file for details
+
+---
+
+**Made with ❤️ by Teckiz**

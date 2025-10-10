@@ -85,4 +85,9 @@ public interface IndexJournalVolumeRepository extends JpaRepository<IndexJournal
      * Check if volume exists by publisher record ID
      */
     boolean existsByPublisherRecordId(String publisherRecordId);
+    
+    /**
+     * Find volume by journal ID and volume number
+     */
+    Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(Long journalId, String volumeNumber);
 }

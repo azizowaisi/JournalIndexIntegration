@@ -26,11 +26,6 @@ public interface IndexJournalSubjectRepository extends JpaRepository<IndexJourna
     List<IndexJournalSubject> findByCompanyId(Long companyId);
     
     /**
-     * Find active subjects
-     */
-    List<IndexJournalSubject> findByActiveTrue();
-    
-    /**
      * Find subjects by name
      */
     Optional<IndexJournalSubject> findByName(String name);
@@ -38,23 +33,13 @@ public interface IndexJournalSubjectRepository extends JpaRepository<IndexJourna
     /**
      * Search subjects by name containing
      */
-    @Query("SELECT s FROM IndexJournalSubject s WHERE s.name LIKE %:name% AND s.active = true")
-    List<IndexJournalSubject> findByNameContainingAndActive(@Param("name") String name);
-    
-    /**
-     * Find subjects by company and active status
-     */
-    List<IndexJournalSubject> findByCompanyIdAndActive(Long companyId, Boolean active);
+    @Query("SELECT s FROM IndexJournalSubject s WHERE s.name LIKE %:name%")
+    List<IndexJournalSubject> findByNameContaining(@Param("name") String name);
     
     /**
      * Count subjects by company
      */
     long countByCompanyId(Long companyId);
-    
-    /**
-     * Count active subjects by company
-     */
-    long countByCompanyIdAndActive(Long companyId, Boolean active);
     
     /**
      * Check if subject exists by subject key
