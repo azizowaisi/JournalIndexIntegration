@@ -16,12 +16,12 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Latest STABLE versions (October 2024) -->
+        <!-- Latest STABLE versions (October 2024) - Updated for CVE-2025-22235 -->
         <aws.lambda.version>1.2.3</aws.lambda.version>
         <aws.lambda.events.version>3.14.0</aws.lambda.events.version>
         <mysql.version>8.4.0</mysql.version>
         <jackson.version>2.18.0</jackson.version>
-        <spring.boot.version>3.3.5</spring.boot.version>
+        <spring.boot.version>3.3.11</spring.boot.version>
         <spring.version>6.1.14</spring.version>
         <spring.data.version>3.3.5</spring.data.version>
         <hibernate.version>6.5.3.Final</hibernate.version>
