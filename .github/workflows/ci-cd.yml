@@ -202,21 +202,29 @@ jobs:
 
       - name: Deploy to AWS
         env:
+          # AWS & Serverless
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          SERVERLESS_DEPLOYMENT_BUCKET: ${{ secrets.SERVERLESS_DEPLOYMENT_BUCKET }}
+          SERVERLESS_DEPLOYMENT_BUCKET: ${{ secrets.DEPLOYMENT_BUCKET_NAME }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          # Database
           DB_URL: ${{ secrets.DB_URL }}
-          DB_USER: ${{ secrets.DB_USER }}
+          DB_USER: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          # SQS
           SQS_QUEUE_ARN: ${{ secrets.SQS_QUEUE_ARN }}
           SQS_QUEUE_URL: ${{ secrets.SQS_QUEUE_URL }}
+          # VPC Configuration (add these secrets to GitHub!)
           VPC_ID: ${{ secrets.VPC_ID }}
           VPC_CIDR: ${{ secrets.VPC_CIDR }}
           VPC_SECURITY_GROUP_ID: ${{ secrets.VPC_SECURITY_GROUP_ID }}
           VPC_SUBNET_ID_1: ${{ secrets.VPC_SUBNET_ID_1 }}
           VPC_SUBNET_ID_2: ${{ secrets.VPC_SUBNET_ID_2 }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
         run: |
           echo "🔐 Logging into Serverless Framework..."
           if [ -n "$SERVERLESS_ACCESS_KEY" ]; then

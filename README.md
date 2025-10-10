@@ -832,37 +832,43 @@ If "Off", redeploy or publish new version.
 
 ### Required GitHub Secrets
 
+Add these secrets in: `Settings → Secrets and variables → Actions → Repository secrets`
+
+#### ✅ Already Configured (You have these)
+
 ```
-# AWS Credentials
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_REGION
-
-# Serverless
-SERVERLESS_ACCESS_KEY
-SERVERLESS_DEPLOYMENT_BUCKET
-
-# Database
-DB_URL
-DB_USER
-DB_PASSWORD
-
-# SQS
-SQS_QUEUE_ARN
-SQS_QUEUE_URL
-
-# VPC
-VPC_ID
-VPC_CIDR
-VPC_SECURITY_GROUP_ID
-VPC_SUBNET_ID_1
-VPC_SUBNET_ID_2
-
-# SonarCloud (Optional)
-SONAR_TOKEN
-SONAR_PROJECT_KEY
-SONAR_ORGANIZATION
+AWS_ACCESS_KEY_ID              # Your AWS access key
+AWS_SECRET_ACCESS_KEY          # Your AWS secret key  
+AWS_REGION                     # ap-south-1
+SERVERLESS_ACCESS_KEY          # Serverless Framework key
+DEPLOYMENT_BUCKET_NAME         # teckiz-deployment-bucket
+S3_BUCKET_NAME                 # index-journal-files
+DB_URL                         # jdbc:mysql://...
+DB_USERNAME                    # teckiz (maps to DB_USER in serverless.yml)
+DB_PASSWORD                    # Your DB password
+DB_NAME                        # teckiz_test
+SQS_QUEUE_ARN                  # arn:aws:sqs:ap-south-1:...
+SQS_QUEUE_URL                  # https://sqs.ap-south-1...
+SONAR_TOKEN                    # SonarCloud token
+SONAR_PROJECT_KEY              # SonarCloud project key
+SONAR_ORGANIZATION             # SonarCloud organization
 ```
+
+#### ⚠️ Missing - Need to Add These
+
+**VPC Configuration** (from your `environments/env.production` file):
+
+```
+VPC_ID=vpc-09dca361
+VPC_CIDR=172.31.0.0/16
+VPC_SECURITY_GROUP_ID=sg-06a9ab999bcbf0681
+VPC_SUBNET_ID_1=subnet-81e887e9
+VPC_SUBNET_ID_2=subnet-3044987c
+MYSQL_HOST=teckiz-prod-sql8.czn2kivgj6u7.ap-south-1.rds.amazonaws.com
+MYSQL_PORT=3306
+```
+
+**Add these 7 secrets to GitHub** to enable CI/CD deployment!
 
 ---
 
