@@ -841,34 +841,35 @@ AWS_ACCESS_KEY_ID              # Your AWS access key
 AWS_SECRET_ACCESS_KEY          # Your AWS secret key  
 AWS_REGION                     # ap-south-1
 SERVERLESS_ACCESS_KEY          # Serverless Framework key
-DEPLOYMENT_BUCKET_NAME         # teckiz-deployment-bucket
+DEPLOYMENT_BUCKET_NAME         # teckiz-deployment-bucket (used as SERVERLESS_DEPLOYMENT_BUCKET)
 S3_BUCKET_NAME                 # index-journal-files
-DB_URL                         # jdbc:mysql://...
-DB_USERNAME                    # teckiz (maps to DB_USER in serverless.yml)
+DB_URL                         # jdbc:mysql://teckiz-prod-sql8...
+DB_USERNAME                    # teckiz
 DB_PASSWORD                    # Your DB password
 DB_NAME                        # teckiz_test
-SQS_QUEUE_ARN                  # arn:aws:sqs:ap-south-1:...
-SQS_QUEUE_URL                  # https://sqs.ap-south-1...
+SQS_QUEUE_ARN                  # arn:aws:sqs:ap-south-1:518624980012:journal-integration-queue
+SQS_QUEUE_URL                  # https://sqs.ap-south-1.amazonaws.com/518624980012/...
 SONAR_TOKEN                    # SonarCloud token
 SONAR_PROJECT_KEY              # SonarCloud project key
 SONAR_ORGANIZATION             # SonarCloud organization
 ```
 
-#### ⚠️ Missing - Need to Add These
+#### ⚠️ Missing - Need to Add These 6 Secrets
 
 **VPC Configuration** (from your `environments/env.production` file):
 
-```
-VPC_ID=vpc-09dca361
-VPC_CIDR=172.31.0.0/16
-VPC_SECURITY_GROUP_ID=sg-06a9ab999bcbf0681
-VPC_SUBNET_ID_1=subnet-81e887e9
-VPC_SUBNET_ID_2=subnet-3044987c
-MYSQL_HOST=teckiz-prod-sql8.czn2kivgj6u7.ap-south-1.rds.amazonaws.com
-MYSQL_PORT=3306
-```
+Go to: `Settings → Secrets and variables → Actions → New repository secret`
 
-**Add these 7 secrets to GitHub** to enable CI/CD deployment!
+| Secret Name | Value |
+|-------------|-------|
+| `VPC_ID` | `vpc-09dca361` |
+| `VPC_CIDR` | `172.31.0.0/16` |
+| `VPC_SECURITY_GROUP_ID` | `sg-06a9ab999bcbf0681` |
+| `VPC_SUBNET_ID_1` | `subnet-81e887e9` |
+| `VPC_SUBNET_ID_2` | `subnet-3044987c` |
+| `MYSQL_HOST` | `teckiz-prod-sql8.czn2kivgj6u7.ap-south-1.rds.amazonaws.com` |
+
+**Note**: `MYSQL_PORT` is hardcoded to `3306` in the workflow (standard MySQL port)
 
 ---
 
