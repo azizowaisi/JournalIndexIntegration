@@ -224,13 +224,16 @@ jobs:
           VPC_SUBNET_ID_1: ${{ secrets.VPC_SUBNET_ID_1 }}
           VPC_SUBNET_ID_2: ${{ secrets.VPC_SUBNET_ID_2 }}
           # MySQL Configuration
-          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
           MYSQL_PORT: "3306"
           MYSQL_DATABASE: ${{ secrets.DB_NAME }}
           MYSQL_SSL_MODE: "REQUIRED"
           MYSQL_CONNECTION_TIMEOUT: "30000"
           MYSQL_SOCKET_TIMEOUT: "30000"
         run: |
+          # Extract MYSQL_HOST from DB_URL (jdbc:mysql://HOST:PORT/DATABASE)
+          export MYSQL_HOST=$(echo "$DB_URL" | sed -n 's#.*://\([^:]*\):.*#\1#p')
+          echo "📝 Extracted MYSQL_HOST: $MYSQL_HOST"
+          
           echo "🔐 Logging into Serverless Framework..."
           if [ -n "$SERVERLESS_ACCESS_KEY" ]; then
             echo "$SERVERLESS_ACCESS_KEY" | serverless login --key
