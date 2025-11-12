@@ -4,11 +4,11 @@ frameworkVersion: '4'
 
 provider:
   name: aws
-  runtime: java17
+  runtime: java21
   region: ${opt:region, 'ap-south-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300
-  memorySize: 2048
+  memorySize: 1024
   deploymentBucket:
     name: ${env:SERVERLESS_DEPLOYMENT_BUCKET}
   vpc:
@@ -39,6 +39,7 @@ provider:
     # Function Configuration
     FUNCTION_TYPE: processor
     LOG_LEVEL: INFO
+    JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=768m -XX:+UseG1GC"
   iam:
     role:
       statements:
@@ -80,8 +81,8 @@ functions:
     handler: com.teckiz.journalindex.LambdaHandler
     name: ${self:service}-${self:provider.stage}-processor
     description: "Processes article JSON messages from SQS and saves directly to database"
-    timeout: 900
-    memorySize: 2048  # Increased for faster cold start (more CPU = faster init)
+    timeout: 300
+    memorySize: 1024
     snapStart: true  # Enable SnapStart for near-instant cold starts
     vpc:
       securityGroupIds:
@@ -92,7 +93,7 @@ functions:
     events:
       - sqs:
           arn: ${env:SQS_QUEUE_ARN}
-          batchSize: 1  # Process 1 message at a time
+          batchSize: 5  # Process 5 messages per invocation
           functionResponseType: ReportBatchItemFailures
     environment:
       LOG_LEVEL: DEBUG
