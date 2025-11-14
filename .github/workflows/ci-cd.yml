@@ -6,7 +6,7 @@ on:
       - master
 
 env:
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   MAVEN_VERSION: '3.9.9'
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -45,7 +45,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -76,7 +76,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -96,7 +96,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -113,7 +113,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -149,7 +149,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
@@ -182,7 +182,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}

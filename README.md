@@ -1,6 +1,6 @@
 # Journal Index Integration
 
-A serverless AWS Lambda function built with Java 17, Spring Boot, and Hibernate for processing batched journal article messages from SQS and persisting them to MySQL database with automatic schema management.
+A serverless AWS Lambda function built with Java 21, Spring Boot 3.3.13, and Hibernate for processing batched journal article messages from SQS and persisting them to MySQL database with automatic schema management.
 
 ## Table of Contents
 
@@ -29,16 +29,16 @@ This service is part of a two-service architecture:
 
 ### Technology Stack
 
-- **Java 17**: Latest LTS with SnapStart support
-- **Spring Boot 3.3.5**: Application framework without web components
+- **Java 21**: Latest LTS with SnapStart support
+- **Spring Boot 3.3.13**: Application framework without web components
 - **Spring Data JPA**: Repository abstraction
-- **Hibernate 6.5.3**: ORM with automatic schema management
-- **HikariCP 5.1.0**: High-performance connection pool
+- **Hibernate**: ORM with automatic schema management (managed by Spring Boot)
+- **HikariCP**: High-performance connection pool
 - **MySQL 8.4.0**: Relational database
 - **AWS Lambda**: Serverless compute with SnapStart
 - **AWS SQS**: Message queuing for article batches
-- **Jackson 2.18.0**: JSON processing
-- **Log4j2 2.24.1**: Structured logging
+- **Jackson**: JSON processing
+- **Log4j2**: Structured logging
 - **Serverless Framework 4.x**: Deployment automation
 
 ---
@@ -85,22 +85,28 @@ SQS (Article Batch) → Lambda Handler → Spring Boot App
 
 ### Detailed Flow
 
-#### For Each SQS Message (ArticleBatch):
-1. Parse message → Extract 50 articles
-2. **For each article independently**:
-   - Start new transaction
-   - Find or create IndexJournal
-   - Find or create IndexJournalVolume
-   - Check if article exists (by URL)
-   - Insert or update IndexJournalArticle
-   - Parse and save IndexJournalAuthor(s)
-   - Commit transaction
-3. Return success/error counts
+#### Lambda Invocation (processes up to 5 SQS messages):
+1. Lambda receives up to 5 SQS messages per invocation (batchSize: 5)
+2. **For each SQS message**:
+   - Parse message → Extract ArticleBatch (up to 50 articles)
+   - **For each article independently**:
+     - Start new transaction
+     - Find or create IndexJournal
+     - Find or create IndexJournalVolume
+     - Check if article exists (by URL)
+     - Insert or update IndexJournalArticle
+     - Parse and save IndexJournalAuthor(s)
+     - Commit transaction
+   - Return success/error counts for that message
+3. Return overall processing summary
 
 #### Error Handling:
-- Article #1 fails → Transaction rolled back for #1 only
-- Articles #2-50 → Continue processing normally
-- Final result: "Batch processed: 49 success, 1 errors out of 50 articles"
+- **Article-level**: Article #1 fails → Transaction rolled back for #1 only
+- **Message-level**: Articles #2-50 in same message → Continue processing normally
+- **Invocation-level**: Failed messages don't affect other messages in batch
+- Final result: "Batch processed: 49 success, 1 errors out of 50 articles" (per message)
+
+**Maximum throughput**: Up to 250 articles per Lambda invocation (5 messages × 50 articles)
 
 ---
 
@@ -110,7 +116,7 @@ SQS (Article Batch) → Lambda Handler → Spring Boot App
 
 ```bash
 # Required tools
-- Java 17 (Amazon Corretto recommended)
+- Java 21 (Amazon Corretto recommended)
 - Maven 3.8+ 
 - AWS CLI configured
 - Serverless Framework 4.x
@@ -382,7 +388,7 @@ LOG_LEVEL=INFO
 
 ### Prerequisites
 
-- Java 17 (Amazon Corretto or OpenJDK)
+- Java 21 (Amazon Corretto or OpenJDK)
 - Maven 3.8+
 - AWS CLI configured with credentials
 - Serverless Framework 4.x
@@ -621,9 +627,9 @@ Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(
 functions:
   journalProcessor:
     handler: com.teckiz.journalindex.LambdaHandler
-    runtime: java17
-    memorySize: 2048       # Higher memory = more CPU
-    timeout: 900           # 15 minutes max
+    runtime: java21
+    memorySize: 1024       # Memory allocation
+    timeout: 300           # 5 minutes max
     snapStart: true        # Fast cold starts!
     vpc:
       securityGroupIds:
@@ -634,7 +640,7 @@ functions:
     events:
       - sqs:
           arn: ${env:SQS_QUEUE_ARN}
-          batchSize: 1     # Process 1 SQS message at a time
+          batchSize: 5     # Process 5 SQS messages at a time
           functionResponseType: ReportBatchItemFailures
 ```
 
@@ -700,16 +706,16 @@ spring.datasource.hikari.max-lifetime=1800000
 | **Cold Start** | <1s | With SnapStart enabled |
 | **Warm Start** | <100ms | Typical invocation |
 | **Batch Processing** | 50 articles | 500-2000ms depending on DB |
-| **Memory Usage** | ~1GB | With 2GB allocated |
+| **Memory Usage** | ~512MB | With 1024MB allocated |
 | **Database Connections** | 1-5 | HikariCP pool |
 
 ### Configuration by Environment
 
 | Setting | Local | Production |
 |---------|-------|------------|
-| Memory | 2048 MB | 2048 MB |
-| Timeout | 900s (15 min) | 900s (15 min) |
-| SQS Batch Size | 1 message | 1 message |
+| Memory | 1024 MB | 1024 MB |
+| Timeout | 300s (5 min) | 300s (5 min) |
+| SQS Batch Size | 5 messages | 5 messages |
 | Articles per Message | 50 | 50 |
 | SnapStart | Enabled | Enabled |
 | VPC | Yes | Yes |
@@ -729,9 +735,9 @@ spring.datasource.hikari.max-lifetime=1800000
 ### Performance Tips
 
 1. **Database**: Use RDS Proxy for connection pooling
-2. **Memory**: 2GB gives more CPU allocation
+2. **Memory**: 1024MB configured for optimal cost/performance
 3. **SnapStart**: Enabled for sub-second cold starts
-4. **Batch Size**: 1 SQS message = 50 articles (optimal)
+4. **Batch Size**: 5 SQS messages per invocation = up to 250 articles (optimal throughput)
 5. **Transactions**: Independent per article for max throughput
 
 ---
@@ -1091,7 +1097,7 @@ git push origin feature/your-feature
 
 # What it does:
 # - Validates environment configuration
-# - Checks Java 17, Maven, Serverless CLI
+# - Checks Java 21, Maven, Serverless CLI
 # - Runs Maven tests
 # - Builds optimized JAR (36MB)
 # - Deploys to AWS Lambda
@@ -1316,9 +1322,9 @@ if ("Article".equalsIgnoreCase(messageType)) {
 ### Processing Limits
 
 - Max articles per batch: **50**
-- Max SQS messages per invocation: **1** (configurable via `batchSize`)
-- Lambda timeout: **900 seconds** (15 minutes)
-- Lambda memory: **2048 MB**
+- Max SQS messages per invocation: **5** (configurable via `batchSize`)
+- Lambda timeout: **300 seconds** (5 minutes)
+- Lambda memory: **1024 MB**
 - Database connections: **5** (HikariCP pool)
 
 ### Error Handling Strategy
