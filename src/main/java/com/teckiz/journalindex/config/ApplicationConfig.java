@@ -71,10 +71,17 @@ public class ApplicationConfig {
         
         // Use environment-specific URL or construct from components
         String finalUrl = dataSourceUrl;
-        if (dataSourceUrl.contains("${MYSQL_HOST}") || dataSourceUrl.contains("localhost")) {
+        boolean hasJdbcPrefix = finalUrl != null && finalUrl.startsWith("jdbc:");
+        if (!hasJdbcPrefix || finalUrl.contains("${MYSQL_HOST}") || finalUrl.contains("localhost")) {
+            // Allow DB_URL to be just the host without jdbc prefix (as passed in secrets)
+            String hostFromDbUrl = finalUrl;
+            if (hostFromDbUrl == null || hostFromDbUrl.isBlank() || hostFromDbUrl.startsWith("jdbc:")) {
+                hostFromDbUrl = mysqlHost;
+            }
+
             // Construct URL from components for VPC deployment
             finalUrl = String.format("jdbc:mysql://%s:%s/%s?useSSL=%s&serverTimezone=UTC&connectTimeout=%s&socketTimeout=%s",
-                    mysqlHost, mysqlPort, mysqlDatabase, mysqlSslMode, mysqlConnectionTimeout, mysqlSocketTimeout);
+                    hostFromDbUrl, mysqlPort, mysqlDatabase, mysqlSslMode, mysqlConnectionTimeout, mysqlSocketTimeout);
         }
         
         config.setJdbcUrl(finalUrl);
