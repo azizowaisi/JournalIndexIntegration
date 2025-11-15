@@ -17,28 +17,39 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     
     private static final Logger logger = LogManager.getLogger(LambdaHandler.class);
-    private static AnnotationConfigApplicationContext springContext;
-    private static JsonArticleProcessor articleProcessor;
+    private static volatile AnnotationConfigApplicationContext springContext;
+    private static volatile JsonArticleProcessor articleProcessor;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Object initLock = new Object();
     
-    static {
-        try {
-            logger.info("=== INITIALIZING SPRING CONTEXT ===");
-            
-            // Initialize Spring context
-            springContext = new AnnotationConfigApplicationContext();
-            springContext.register(com.teckiz.journalindex.config.ApplicationConfig.class);
-            springContext.refresh();
-            logger.info("Spring context initialized");
-            
-            // Get article processor service
-            articleProcessor = springContext.getBean(JsonArticleProcessor.class);
-            logger.info("JsonArticleProcessor bean retrieved");
+    /**
+     * Initialize Spring context lazily on first request instead of in static block
+     * This prevents Lambda initialization timeout (10 second limit)
+     */
+    private static void initializeSpringContext() {
+        if (springContext == null) {
+            synchronized (initLock) {
+                if (springContext == null) {
+                    try {
+                        logger.info("=== INITIALIZING SPRING CONTEXT (LAZY) ===");
+                        
+                        // Initialize Spring context
+                        springContext = new AnnotationConfigApplicationContext();
+                        springContext.register(com.teckiz.journalindex.config.ApplicationConfig.class);
+                        springContext.refresh();
+                        logger.info("Spring context initialized");
+                        
+                        // Get article processor service
+                        articleProcessor = springContext.getBean(JsonArticleProcessor.class);
+                        logger.info("JsonArticleProcessor bean retrieved");
 
-            logger.info("Spring context initialized successfully");
-        } catch (Exception e) {
-            logger.error("Failed to initialize Spring context", e);
-            throw new RuntimeException("Failed to initialize Spring context", e);
+                        logger.info("Spring context initialized successfully");
+                    } catch (Exception e) {
+                        logger.error("Failed to initialize Spring context", e);
+                        throw new RuntimeException("Failed to initialize Spring context", e);
+                    }
+                }
+            }
         }
     }
     
@@ -50,6 +61,9 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
         logger.info("Lambda Request ID: {}", context.getAwsRequestId());
         logger.info("Lambda Remaining Time: {} ms", context.getRemainingTimeInMillis());
         logger.info("Lambda Memory Limit: {} MB", context.getMemoryLimitInMB());
+        
+        // Initialize Spring context lazily on first request
+        initializeSpringContext();
         
         logger.info("Received SQS event with {} records", sqsEvent.getRecords().size());
         logger.info("SQS Event Source ARN: {}", sqsEvent.getRecords().isEmpty() ? "N/A" : sqsEvent.getRecords().get(0).getEventSourceArn());
