@@ -38,8 +38,15 @@ public interface IndexJournalArticleRepository extends JpaRepository<IndexJourna
     
     /**
      * Find articles by publisher record ID
+     * Returns all matches (handles duplicates)
      */
-    Optional<IndexJournalArticle> findByPublisherRecordId(String publisherRecordId);
+    @Query("SELECT a FROM IndexJournalArticle a WHERE a.publisherRecordId = :publisherRecordId ORDER BY a.id ASC")
+    List<IndexJournalArticle> findAllByPublisherRecordId(@Param("publisherRecordId") String publisherRecordId);
+    
+    default Optional<IndexJournalArticle> findByPublisherRecordId(String publisherRecordId) {
+        List<IndexJournalArticle> results = findAllByPublisherRecordId(publisherRecordId);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
     
     /**
      * Find articles by article type
@@ -110,6 +117,13 @@ public interface IndexJournalArticleRepository extends JpaRepository<IndexJourna
     
     /**
      * Find article by page URL
+     * Returns first result if multiple exist (handles duplicates)
      */
-    Optional<IndexJournalArticle> findByPageURL(String pageURL);
+    @Query("SELECT a FROM IndexJournalArticle a WHERE a.pageURL = :pageURL ORDER BY a.id ASC")
+    List<IndexJournalArticle> findAllByPageURL(@Param("pageURL") String pageURL);
+    
+    default Optional<IndexJournalArticle> findByPageURL(String pageURL) {
+        List<IndexJournalArticle> results = findAllByPageURL(pageURL);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
 }

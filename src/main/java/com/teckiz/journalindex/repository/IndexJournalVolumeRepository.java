@@ -87,7 +87,14 @@ public interface IndexJournalVolumeRepository extends JpaRepository<IndexJournal
     boolean existsByPublisherRecordId(String publisherRecordId);
     
     /**
-     * Find volume by journal ID and volume number
+     * Find volumes by journal ID and volume number
+     * Returns all matches (handles duplicates)
      */
-    Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(Long journalId, String volumeNumber);
+    @Query("SELECT v FROM IndexJournalVolume v WHERE v.indexJournal.id = :journalId AND v.volumeNumber = :volumeNumber ORDER BY v.id ASC")
+    List<IndexJournalVolume> findAllByIndexJournalIdAndVolumeNumber(@Param("journalId") Long journalId, @Param("volumeNumber") String volumeNumber);
+    
+    default Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(Long journalId, String volumeNumber) {
+        List<IndexJournalVolume> results = findAllByIndexJournalIdAndVolumeNumber(journalId, volumeNumber);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
 }
