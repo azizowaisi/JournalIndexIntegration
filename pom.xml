@@ -10,16 +10,19 @@
     <packaging>jar</packaging>
 
     <name>Journal Index Integration</name>
-    <description>Fanout Lambda service for OAI harvesting and MySQL storage</description>
+    <description>Lightweight AWS Lambda service for processing article JSON messages and saving to MySQL using plain JDBC</description>
 
     <properties>
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring.boot.version>3.3.13</spring.boot.version>
         <aws.lambda.version>1.4.0</aws.lambda.version>
         <aws.lambda.events.version>3.16.1</aws.lambda.events.version>
+        <hikaricp.version>5.1.0</hikaricp.version>
+        <jackson.version>2.18.2</jackson.version>
+        <mysql.version>9.1.0</mysql.version>
+        <log4j.version>2.24.3</log4j.version>
         <junit.version>5.11.3</junit.version>
         <mockito.version>5.20.0</mockito.version>
         <assertj.version>3.25.3</assertj.version>
@@ -31,18 +34,6 @@
         <sonar.organization>azizowaisi</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring.boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <!-- AWS Lambda Core -->
@@ -59,10 +50,11 @@
             <version>${aws.lambda.events.version}</version>
         </dependency>
 
-        <!-- MySQL Connector (optimized) -->
+        <!-- MySQL Connector -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+            <version>${mysql.version}</version>
             <exclusions>
                 <!-- Exclude protobuf (large and optional) -->
                 <exclusion>
@@ -72,162 +64,47 @@
             </exclusions>
         </dependency>
 
-        <!-- Spring Boot (minimal - needed for Spring Data JPA initialization) -->
+        <!-- HikariCP for connection pooling -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot</artifactId>
-            <exclusions>
-                <!-- Exclude web server components -->
-                <exclusion>
-                    <groupId>org.springframework</groupId>
-                    <artifactId>spring-web</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.springframework</groupId>
-                    <artifactId>spring-webmvc</artifactId>
-                </exclusion>
-                <!-- Exclude default logging - we use Log4j2 directly -->
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-            <exclusions>
-                <!-- Exclude web autoconfiguration -->
-                <exclusion>
-                    <groupId>org.springframework</groupId>
-                    <artifactId>spring-web</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.springframework</groupId>
-                    <artifactId>spring-webmvc</artifactId>
-                </exclusion>
-                <!-- Exclude default logging -->
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikaricp.version}</version>
         </dependency>
 
         <!-- Jackson for JSON processing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
 
-        <!-- Spring Data JPA -->
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-jpa</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>javax.persistence</groupId>
-                    <artifactId>javax.persistence-api</artifactId>
-                </exclusion>
-                <!-- Exclude metrics/micrometer (not needed) -->
-                <exclusion>
-                    <groupId>io.micrometer</groupId>
-                    <artifactId>micrometer-observation</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.micrometer</groupId>
-                    <artifactId>micrometer-commons</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <!-- Spring Framework -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
-            <exclusions>
-                <!-- Exclude metrics/micrometer (not needed) -->
-                <exclusion>
-                    <groupId>io.micrometer</groupId>
-                    <artifactId>micrometer-observation</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-orm</artifactId>
-        </dependency>
-
-        <!-- Jakarta Persistence API -->
+        <!-- Jakarta Persistence API (annotations only - no Hibernate runtime) -->
         <dependency>
             <groupId>jakarta.persistence</groupId>
             <artifactId>jakarta.persistence-api</artifactId>
+            <version>3.1.0</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Jakarta Annotations API -->
         <dependency>
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
-        </dependency>
-
-        <!-- Hibernate Core with Jakarta support (optimized for Lambda) -->
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-core</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>javax.persistence</groupId>
-                    <artifactId>javax.persistence-api</artifactId>
-                </exclusion>
-                <!-- Exclude validation (not used) -->
-                <exclusion>
-                    <groupId>org.hibernate.validator</groupId>
-                    <artifactId>hibernate-validator</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>jakarta.validation</groupId>
-                    <artifactId>jakarta.validation-api</artifactId>
-                </exclusion>
-                <!-- Exclude JAXB since we use DOM parser -->
-                <exclusion>
-                    <groupId>org.glassfish.jaxb</groupId>
-                    <artifactId>jaxb-runtime</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <!-- HikariCP for connection pooling (lighter than commons-dbcp2) -->
-        <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>HikariCP</artifactId>
+            <version>2.1.1</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Logging -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j.version}</version>
         </dependency>
 
         <!-- Testing -->
@@ -253,19 +130,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Spring Boot Test -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <version>${spring.boot.version}</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
 
 
         <!-- AssertJ for fluent assertions -->
@@ -286,6 +150,12 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
+                    <excludes>
+                        <!-- Exclude unused Spring-based repository files -->
+                        <exclude>**/repository/**/*.java</exclude>
+                        <!-- Exclude unused Spring-based service (OjsOaiXmlImporter) -->
+                        <exclude>**/service/OjsOaiXmlImporter.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
 
@@ -301,7 +171,7 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <!-- Disable minimizeJar - Camel needs all its classes for runtime loading -->
+                            <!-- Keep all classes for lightweight Lambda -->
                             <minimizeJar>false</minimizeJar>
                             <filters>
                                 <!-- Exclude unnecessary META-INF files to reduce size -->
@@ -323,13 +193,6 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.teckiz.journalindex.LambdaHandler</mainClass>
-                                </transformer>
-                                <!-- Merge Spring handlers -->
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                                    <resource>META-INF/spring.handlers</resource>
-                                </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                                    <resource>META-INF/spring.schemas</resource>
                                 </transformer>
                                 <!-- Merge services -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>

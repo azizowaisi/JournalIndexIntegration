@@ -14,7 +14,6 @@ import java.util.List;
     @Index(name = "indexed_article_publish_at_index", columnList = "published_at")
 })
 @Cacheable
-@org.hibernate.annotations.Cache(usage = org.hibernate.annotations.CacheConcurrencyStrategy.NONSTRICT_READ_WRITE, region = "my_entity_cache")
 public class IndexJournalArticle {
 
     @Id
