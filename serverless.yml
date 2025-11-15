@@ -10,7 +10,7 @@ provider:
   timeout: 300  # 5 minutes (function-level overrides this)
   memorySize: 1024  # 1024MB required for Spring + Hibernate initialization
   deploymentBucket:
-    name: ${env:SERVERLESS_DEPLOYMENT_BUCKET}
+    name: ${env:SERVERLESS_DEPLOYMENT_BUCKET, 'teckiz-deployment-bucket'}
   vpc:
     securityGroupIds:
       - ${env:VPC_SECURITY_GROUP_ID}
