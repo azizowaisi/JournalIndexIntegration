@@ -8,7 +8,7 @@ provider:
   region: ${opt:region, 'ap-south-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300  # 5 minutes (function-level overrides this)
-  memorySize: 768  # 768MB minimum for Spring + Hibernate initialization
+  memorySize: 1024  # 1024MB required for Spring + Hibernate initialization
   deploymentBucket:
     name: ${env:SERVERLESS_DEPLOYMENT_BUCKET}
   vpc:
@@ -39,7 +39,7 @@ provider:
     # Function Configuration
     FUNCTION_TYPE: processor
     LOG_LEVEL: INFO
-    JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=512m -XX:+UseG1GC"
+    JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=768m -XX:+UseG1GC"
   iam:
     role:
       statements:
@@ -82,8 +82,8 @@ functions:
     name: ${self:service}-${self:provider.stage}-processor
     description: "Processes article JSON messages from SQS and saves directly to database"
     timeout: 300  # 5 minutes
-    memorySize: 768  # 768MB minimum for Spring + Hibernate initialization
-    snapStart: true  # Enable SnapStart for near-instant cold starts
+    memorySize: 1024  # 1024MB required for Spring + Hibernate initialization
+    # snapStart: true  # Temporarily disabled - may cause issues with static initialization and database connections
     vpc:
       securityGroupIds:
         - ${env:VPC_SECURITY_GROUP_ID}
