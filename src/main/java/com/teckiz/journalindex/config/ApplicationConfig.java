@@ -72,16 +72,36 @@ public class ApplicationConfig {
         // Use environment-specific URL or construct from components
         String finalUrl = dataSourceUrl;
         boolean hasJdbcPrefix = finalUrl != null && finalUrl.startsWith("jdbc:");
-        if (!hasJdbcPrefix || finalUrl.contains("${MYSQL_HOST}") || finalUrl.contains("localhost")) {
-            // Allow DB_URL to be just the host without jdbc prefix (as passed in secrets)
-            String hostFromDbUrl = finalUrl;
-            if (hostFromDbUrl == null || hostFromDbUrl.isBlank() || hostFromDbUrl.startsWith("jdbc:")) {
-                hostFromDbUrl = mysqlHost;
+        
+        // Extract host - use MYSQL_HOST if set, otherwise extract from DB_URL
+        String hostToUse = mysqlHost;
+        if (hostToUse == null || hostToUse.isBlank()) {
+            if (finalUrl != null && !finalUrl.isBlank()) {
+                if (hasJdbcPrefix) {
+                    // Extract host from JDBC URL: jdbc:mysql://HOST:PORT/DATABASE
+                    try {
+                        String urlWithoutPrefix = finalUrl.substring("jdbc:mysql://".length());
+                        int colonIndex = urlWithoutPrefix.indexOf(':');
+                        int slashIndex = urlWithoutPrefix.indexOf('/');
+                        if (colonIndex > 0 && slashIndex > colonIndex) {
+                            hostToUse = urlWithoutPrefix.substring(0, colonIndex);
+                        }
+                    } catch (Exception e) {
+                        // If parsing fails, fall back to using DB_URL as host
+                        hostToUse = finalUrl;
+                    }
+                } else {
+                    // DB_URL is just the host name
+                    hostToUse = finalUrl;
+                }
             }
-
+        }
+        
+        // If we still don't have a valid URL with jdbc: prefix, construct it
+        if (!hasJdbcPrefix || finalUrl.contains("${MYSQL_HOST}") || finalUrl.contains("localhost") || hostToUse != null) {
             // Construct URL from components for VPC deployment
             finalUrl = String.format("jdbc:mysql://%s:%s/%s?useSSL=%s&serverTimezone=UTC&connectTimeout=%s&socketTimeout=%s",
-                    hostFromDbUrl, mysqlPort, mysqlDatabase, mysqlSslMode, mysqlConnectionTimeout, mysqlSocketTimeout);
+                    hostToUse != null ? hostToUse : mysqlHost, mysqlPort, mysqlDatabase, mysqlSslMode, mysqlConnectionTimeout, mysqlSocketTimeout);
         }
         
         config.setJdbcUrl(finalUrl);
@@ -90,13 +110,14 @@ public class ApplicationConfig {
         config.setDriverClassName(dataSourceDriverClassName);
         
         // VPC-specific connection pool settings (HikariCP - optimized for Lambda cold start)
-        config.setMinimumIdle(1);  // Reduced from 2 to speed up initialization
+        config.setMinimumIdle(0);  // Don't create connections during initialization
         config.setMaximumPoolSize(5);  // Reduced from 10 for Lambda
-        config.setConnectionTimeout(10000);  // 10 seconds
+        config.setConnectionTimeout(5000);  // 5 seconds (reduced to prevent timeout)
         config.setIdleTimeout(300000);  // 5 minutes
         config.setMaxLifetime(600000);  // 10 minutes (shorter for Lambda)
         config.setConnectionTestQuery("SELECT 1");
         config.setInitializationFailTimeout(-1);  // Don't fail if pool can't initialize immediately
+        config.setRegisterMbeans(false);  // Disable JMX to reduce overhead
         
         return new com.zaxxer.hikari.HikariDataSource(config);
     }
