@@ -9,7 +9,7 @@ on:
       - integration-work-flow
 
 env:
-  JAVA_VERSION: '21'
+  JAVA_VERSION: '17'
   MAVEN_VERSION: '3.9.9'
 
 jobs:
@@ -32,7 +32,12 @@ jobs:
           cache: 'maven'
 
       - name: Check code formatting with Maven
-        run: mvn spotless:check || echo "No spotless plugin configured"
+        run: |
+          if grep -q "spotless-maven-plugin" pom.xml 2>/dev/null; then
+            mvn spotless:check
+          else
+            echo "ℹ️ Spotless plugin not configured, skipping code format check"
+          fi
         continue-on-error: true
 
       - name: Run Maven validate
