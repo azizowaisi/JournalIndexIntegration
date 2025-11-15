@@ -8,7 +8,7 @@ provider:
   region: ${opt:region, 'ap-south-1'}
   stage: ${opt:stage, 'dev'}
   timeout: 300  # 5 minutes (function-level overrides this)
-  memorySize: 1024  # 1024MB required for Spring + Hibernate initialization
+  memorySize: 256  # 256MB optimized for lightweight plain JDBC application
   deploymentBucket:
     name: ${env:SERVERLESS_DEPLOYMENT_BUCKET, 'teckiz-deployment-bucket'}
   vpc:
@@ -39,7 +39,7 @@ provider:
     # Function Configuration
     FUNCTION_TYPE: processor
     LOG_LEVEL: INFO
-    JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=768m -XX:+UseG1GC"
+    JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=128m -XX:+UseG1GC -XX:MaxMetaspaceSize=64m"
   iam:
     role:
       statements:
@@ -82,8 +82,8 @@ functions:
     name: ${self:service}-${self:provider.stage}-processor
     description: "Processes article JSON messages from SQS and saves directly to database"
     timeout: 300  # 5 minutes
-    memorySize: 1024  # 1024MB required for Spring + Hibernate initialization
-    # snapStart: true  # Temporarily disabled - may cause issues with static initialization and database connections
+    memorySize: 256  # 256MB optimized for lightweight plain JDBC application
+    # snapStart: true  # Can be enabled later for faster cold starts (not needed initially)
     vpc:
       securityGroupIds:
         - ${env:VPC_SECURITY_GROUP_ID}

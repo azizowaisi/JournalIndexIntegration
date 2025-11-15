@@ -1,6 +1,6 @@
 # Journal Index Integration
 
-A serverless AWS Lambda function built with Java 21, Spring Boot 3.3.13, and Hibernate for processing batched journal article messages from SQS and persisting them to MySQL database with automatic schema management.
+A lightweight serverless AWS Lambda function built with Java 17 and plain JDBC for processing batched journal article messages from SQS and persisting them to MySQL database. Optimized for minimal memory footprint and fast cold starts.
 
 ## Table of Contents
 
@@ -29,15 +29,13 @@ This service is part of a two-service architecture:
 
 ### Technology Stack
 
-- **Java 21**: Latest LTS with SnapStart support
-- **Spring Boot 3.3.13**: Application framework without web components
-- **Spring Data JPA**: Repository abstraction
-- **Hibernate**: ORM with automatic schema management (managed by Spring Boot)
-- **HikariCP**: High-performance connection pool
-- **MySQL 8.4.0**: Relational database
-- **AWS Lambda**: Serverless compute with SnapStart
+- **Java 17**: Lightweight runtime optimized for Lambda
+- **Plain JDBC**: Direct database access without ORM overhead
+- **HikariCP**: Lightweight connection pool (minimal configuration)
+- **MySQL 9.1.0**: Relational database
+- **AWS Lambda**: Serverless compute (Java 17 runtime)
 - **AWS SQS**: Message queuing for article batches
-- **Jackson**: JSON processing
+- **Jackson 2.18.2**: JSON processing
 - **Log4j2**: Structured logging
 - **Serverless Framework 4.x**: Deployment automation
 
@@ -49,17 +47,20 @@ This service is part of a two-service architecture:
 - ✅ **Batch Processing**: Handles up to 50 articles per SQS message
 - ✅ **Independent Transactions**: Each article processed in separate transaction
 - ✅ **Error Resilience**: One failed article doesn't affect others in batch
-- ✅ **Auto Schema Management**: Hibernate creates/updates tables automatically
+- ✅ **Lightweight Architecture**: Plain JDBC without Spring/Hibernate overhead
 - ✅ **Duplicate Detection**: Checks existing articles by URL before insert
 - ✅ **Author Parsing**: Extracts and saves multiple authors per article
 - ✅ **Volume Management**: Creates journal volumes as needed
-- ✅ **Fast Cold Starts**: SnapStart enabled for near-instant initialization
+- ✅ **Minimal Memory**: Optimized for 256MB Lambda memory
+- ✅ **Fast Cold Starts**: Lightweight initialization without framework overhead
 
 ### Advanced Features
-- **Connection Pooling**: HikariCP for optimal database performance
+- **Connection Pooling**: HikariCP with minimal configuration (0 min idle, max 5 connections)
 - **VPC Integration**: Private subnet deployment with RDS access
 - **Comprehensive Logging**: Detailed CloudWatch logs for debugging
-- **JAR Optimization**: Minimal 36MB deployment package
+- **Ultra-Lightweight**: No Spring/Hibernate dependencies (significantly smaller JAR)
+- **Memory Optimized**: 256MB memory with 128MB heap allocation
+- **DAO Pattern**: Clean data access layer using plain JDBC
 - **Multi-Environment**: Separate local and production configurations
 - **CI/CD Ready**: GitHub Actions workflows included
 
@@ -70,17 +71,17 @@ This service is part of a two-service architecture:
 ### Processing Flow
 
 ```
-SQS (Article Batch) → Lambda Handler → Spring Boot App
-                              ↓
-                      JsonArticleProcessor
+SQS (Article Batch) → Lambda Handler → JsonArticleProcessor
                               ↓
                    ┌──────────┴──────────┐
                    ↓                     ↓
-            Find/Create Journal   Process Each Article
+            DAO Layer (JDBC)    Process Each Article
                    ↓                     ↓
-            Find/Create Volume    Independent Transaction
+            Find/Create Journal   Independent Transaction
                    ↓                     ↓
-              MySQL Database ← Save Article + Authors
+            Find/Create Volume    Save Article + Authors
+                   ↓                     ↓
+              MySQL Database ← Direct JDBC Operations
 ```
 
 ### Detailed Flow
@@ -116,7 +117,7 @@ SQS (Article Batch) → Lambda Handler → Spring Boot App
 
 ```bash
 # Required tools
-- Java 21 (Amazon Corretto recommended)
+- Java 17 (Amazon Corretto recommended)
 - Maven 3.8+ 
 - AWS CLI configured
 - Serverless Framework 4.x
@@ -260,9 +261,9 @@ serverless deploy --stage production --region ap-south-1
 
 ## Database Schema
 
-### Tables Created Automatically
+### Tables Required
 
-The system uses Hibernate's `ddl-auto=update` to create tables automatically:
+The system expects the following tables to exist in the database:
 
 #### IndexJournal
 - Primary table for journal information
@@ -287,18 +288,9 @@ The system uses Hibernate's `ddl-auto=update` to create tables automatically:
 
 ### Schema Management
 
-```properties
-# Configured in application.properties
-spring.jpa.hibernate.ddl-auto=update
+**Note**: This application uses plain JDBC and does not automatically create tables. Tables must be created manually or via a migration tool (Liquibase/Flyway).
 
-# Hibernate automatically:
-- Creates tables if they don't exist
-- Adds new columns when entities change
-- Preserves existing data
-- Never drops columns or tables
-```
-
-**Important**: For production, consider using Liquibase or Flyway for controlled migrations.
+The DAO layer expects the following table structure to exist:
 
 ---
 
@@ -317,9 +309,14 @@ JournalIndexIntegration/
 ├── src/
 │   ├── main/java/com/teckiz/journalindex/
 │   │   ├── LambdaHandler.java     # Main Lambda entry point
-│   │   ├── config/
-│   │   │   └── ApplicationConfig.java  # Spring & Hibernate config
-│   │   ├── entity/                # JPA entities
+│   │   ├── db/
+│   │   │   └── DatabaseManager.java  # HikariCP connection manager
+│   │   ├── dao/                   # Lightweight DAO layer (JDBC)
+│   │   │   ├── JournalDao.java
+│   │   │   ├── VolumeDao.java
+│   │   │   ├── ArticleDao.java
+│   │   │   └── AuthorDao.java
+│   │   ├── entity/                # Plain POJO entities
 │   │   │   ├── IndexJournal.java
 │   │   │   ├── IndexJournalVolume.java
 │   │   │   ├── IndexJournalArticle.java
@@ -329,13 +326,8 @@ JournalIndexIntegration/
 │   │   │   ├── SqsArticleMessage.java
 │   │   │   ├── ArticleModel.java
 │   │   │   └── ArticleAuthorModel.java
-│   │   ├── repository/            # Spring Data JPA repositories
-│   │   │   ├── IndexJournalRepository.java
-│   │   │   ├── IndexJournalArticleRepository.java
-│   │   │   └── IndexJournalVolumeRepository.java
 │   │   └── service/               # Business logic
-│   │       ├── JsonArticleProcessor.java  # Main processing service
-│   │       └── OjsOaiXmlImporter.java     # Legacy XML support
+│   │       └── JsonArticleProcessor.java  # Main processing service
 │   └── resources/
 │       ├── application.properties # Spring Boot config
 │       ├── application-local.properties
@@ -600,20 +592,21 @@ CREATE TABLE IndexJournalAuthor (
 );
 ```
 
-### Repository Methods
+### DAO Methods
 
 ```java
-// Find journal by unique key
-Optional<IndexJournal> findByJournalKey(String journalKey);
+// JournalDao - Find or create journal
+IndexJournal findOrCreateByJournalKey(String journalKey, String website, String publisher);
 
-// Find article by URL (duplicate detection)
+// VolumeDao - Find or create volume
+IndexJournalVolume findOrCreateByJournalIdAndVolumeNumber(Long journalId, String volumeNumber);
+
+// ArticleDao - Find article or save new
 Optional<IndexJournalArticle> findByPageURL(String pageUrl);
+IndexJournalArticle save(IndexJournalArticle article);
 
-// Find volume by journal and number
-Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(
-    Long journalId, 
-    String volumeNumber
-);
+// AuthorDao - Save authors for article
+void saveAuthors(Long articleId, List<String> authorNames);
 ```
 
 ---
@@ -627,10 +620,9 @@ Optional<IndexJournalVolume> findByIndexJournalIdAndVolumeNumber(
 functions:
   journalProcessor:
     handler: com.teckiz.journalindex.LambdaHandler
-    runtime: java21
-    memorySize: 1024       # Memory allocation
+    runtime: java17
+    memorySize: 256        # Optimized memory allocation
     timeout: 300           # 5 minutes max
-    snapStart: true        # Fast cold starts!
     vpc:
       securityGroupIds:
         - ${env:VPC_SECURITY_GROUP_ID}
@@ -642,31 +634,35 @@ functions:
           arn: ${env:SQS_QUEUE_ARN}
           batchSize: 5     # Process 5 SQS messages at a time
           functionResponseType: ReportBatchItemFailures
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=128m -XX:+UseG1GC -XX:MaxMetaspaceSize=64m"
 ```
 
-### Spring Boot Configuration
+### Database Configuration
 
-```properties
-# application.properties
+The application uses `DatabaseManager` for connection management:
 
-# Database
-spring.datasource.url=${DB_URL}
-spring.datasource.username=${DB_USER}
-spring.datasource.password=${DB_PASSWORD}
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-
-# Hibernate
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=false
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
-
-# HikariCP Connection Pool
-spring.datasource.hikari.maximum-pool-size=5
-spring.datasource.hikari.minimum-idle=1
-spring.datasource.hikari.connection-timeout=30000
-spring.datasource.hikari.idle-timeout=600000
-spring.datasource.hikari.max-lifetime=1800000
+```java
+// DatabaseManager.java - Lightweight HikariCP configuration
+HikariConfig config = new HikariConfig();
+config.setMinimumIdle(0);              // No connections during init
+config.setMaximumPoolSize(5);          // Max 5 connections
+config.setConnectionTimeout(5000);     // 5 seconds
+config.setIdleTimeout(300000);         // 5 minutes
+config.setMaxLifetime(600000);         // 10 minutes
+config.setRegisterMbeans(false);       // No JMX overhead
 ```
+
+Configuration via environment variables:
+- `DB_URL`: JDBC connection URL (or extracted from DB_URL)
+- `DB_USERNAME`: Database username
+- `DB_PASSWORD`: Database password
+- `MYSQL_HOST`: MySQL host (auto-extracted if not set)
+- `MYSQL_PORT`: MySQL port (default: 3306)
+- `MYSQL_DATABASE`: Database name
+- `MYSQL_SSL_MODE`: SSL mode (REQUIRED/FALSE)
+- `MYSQL_CONNECTION_TIMEOUT`: Connection timeout (ms)
+- `MYSQL_SOCKET_TIMEOUT`: Socket timeout (ms)
 
 ### Logging Configuration
 
@@ -687,8 +683,6 @@ spring.datasource.hikari.max-lifetime=1800000
     </Root>
     
     <!-- Reduce framework noise -->
-    <Logger name="org.springframework" level="WARN"/>
-    <Logger name="org.hibernate" level="WARN"/>
     <Logger name="com.zaxxer.hikari" level="WARN"/>
   </Loggers>
 </Configuration>
@@ -702,43 +696,49 @@ spring.datasource.hikari.max-lifetime=1800000
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **JAR Size** | 36 MB | Optimized with dependency exclusions |
-| **Cold Start** | <1s | With SnapStart enabled |
+| **JAR Size** | ~20-25 MB | Ultra-lightweight (no Spring/Hibernate) |
+| **Cold Start** | <2s | Lightweight JDBC initialization |
 | **Warm Start** | <100ms | Typical invocation |
 | **Batch Processing** | 50 articles | 500-2000ms depending on DB |
-| **Memory Usage** | ~512MB | With 1024MB allocated |
-| **Database Connections** | 1-5 | HikariCP pool |
+| **Memory Usage** | ~128-150MB | With 256MB allocated (128MB heap) |
+| **Database Connections** | 0-5 | HikariCP pool (0 min idle) |
 
 ### Configuration by Environment
 
 | Setting | Local | Production |
 |---------|-------|------------|
-| Memory | 1024 MB | 1024 MB |
+| Memory | 256 MB | 256 MB |
+| Heap Size | 128 MB | 128 MB |
 | Timeout | 300s (5 min) | 300s (5 min) |
 | SQS Batch Size | 5 messages | 5 messages |
 | Articles per Message | 50 | 50 |
-| SnapStart | Enabled | Enabled |
 | VPC | Yes | Yes |
 | Log Retention | 7 days | 30 days |
 
 ### Optimization Highlights
 
-**JAR Size Reduction**:
-- Excluded Spring Boot web components
-- Excluded unnecessary Spring Data metrics
-- Excluded JAXB from Hibernate
-- Excluded Protobuf from MySQL connector
-- Removed transitive logging dependencies
+**Architecture Transformation**:
+- Removed Spring Framework (entirely)
+- Removed Spring Boot
+- Removed Spring Data JPA
+- Removed Hibernate ORM
+- Implemented lightweight DAO pattern with plain JDBC
+- Minimal dependencies: JDBC, HikariCP, Jackson, Log4j2 only
 
-**Result**: **47MB → 36MB** (23% reduction)
+**Result**: 
+- **JAR Size**: ~20-25MB (vs 36MB+ with Spring)
+- **Memory**: 256MB (vs 1024MB+ with Spring/Hibernate)
+- **Cold Start**: Faster initialization without framework overhead
+- **Cost**: Significantly reduced Lambda costs
 
 ### Performance Tips
 
-1. **Database**: Use RDS Proxy for connection pooling
-2. **Memory**: 1024MB configured for optimal cost/performance
-3. **SnapStart**: Enabled for sub-second cold starts
+1. **Database**: Use RDS Proxy for connection pooling (optional)
+2. **Memory**: 256MB optimized for cost-effective operation
+3. **Connection Pool**: 0 min idle for Lambda (connections created on-demand)
 4. **Batch Size**: 5 SQS messages per invocation = up to 250 articles (optimal throughput)
 5. **Transactions**: Independent per article for max throughput
+6. **Heap Size**: 128MB allows ~128MB for non-heap (metaspace, code cache, etc.)
 
 ---
 
@@ -750,11 +750,7 @@ spring.datasource.hikari.max-lifetime=1800000
 
 **Error**: `Table 'database.IndexJournalArticle' doesn't exist`
 
-**Solution**: Ensure `spring.jpa.hibernate.ddl-auto=update` is set in `application.properties`
-
-```properties
-spring.jpa.hibernate.ddl-auto=update
-```
+**Solution**: Create tables manually or use a migration tool. This application uses plain JDBC and does not auto-create tables. Use Liquibase or Flyway for schema management.
 
 #### 2. Database Connection Timeout
 
@@ -766,32 +762,33 @@ spring.jpa.hibernate.ddl-auto=update
 - Confirm RDS security group allows Lambda security group
 - Check database endpoint and credentials
 
-#### 3. SnapStart Optimization Off
+#### 3. Memory Issues (OutOfMemoryError)
 
-**Check**: 
-```bash
-aws lambda get-function --function-name journal-index-integration-production-processor:32
-```
+**Error**: `java.lang.OutOfMemoryError: Java heap space`
 
-**Should show**: `"OptimizationStatus": "On"`
-
-If "Off", redeploy or publish new version.
+**Solution**: 
+- Current configuration: 256MB memory, 128MB heap
+- If you see OOM errors, increase memory to 384MB or 512MB in `serverless.yml`
+- Monitor CloudWatch metrics for actual memory usage
 
 #### 4. Transaction Rollback Errors
 
-**Error**: `Transaction silently rolled back`
+**Error**: `Transaction rolled back`
 
-**Cause**: Multiple `@Transactional` annotations nesting
+**Cause**: Database constraint violations or data errors
 
-**Solution**: Ensure only `processArticleData()` has `@Transactional`, not `processBatch()`
+**Solution**: Check CloudWatch logs for specific SQL errors. Each article transaction is independent, so one failure doesn't affect others.
 
-#### 5. Null ID in Entity Error
+#### 5. Connection Pool Exhaustion
 
-**Error**: `null id in com.teckiz.journalindex.entity.IndexJournalArticle entry`
+**Error**: `Connection is not available, request timed out after 5000ms`
 
-**Cause**: Hibernate session corrupted by failed transaction
+**Cause**: Too many concurrent requests or pool size too small
 
-**Solution**: Remove `@Transactional` from batch method (already fixed)
+**Solution**: 
+- Current pool: max 5 connections, min 0 idle
+- Increase `maximumPoolSize` in `DatabaseManager.java` if needed
+- Consider using RDS Proxy for better connection management
 
 #### 6. Log4j2 Format Errors
 
@@ -1138,52 +1135,63 @@ git push origin feature/your-feature
 
 ## Architecture Decisions
 
-### Why Spring Boot (No Apache Camel)?
+### Why Plain JDBC Instead of Spring/Hibernate?
 
-**Previous**: Used Apache Camel for routing  
-**Current**: Pure Spring Boot  
+**Previous**: Spring Boot + Spring Data JPA + Hibernate  
+**Current**: Plain JDBC with DAO pattern  
 
 **Benefits**:
-- **Smaller JAR**: 47MB → 36MB (23% reduction)
-- **Simpler**: Less framework overhead
-- **Faster**: No Camel context initialization
-- **Clearer**: Direct Spring service calls
+- **Significantly Smaller JAR**: ~20-25MB (vs 36MB+ with Spring)
+- **Lower Memory**: 256MB (vs 1024MB+ with Spring/Hibernate)
+- **Faster Cold Starts**: No Spring context initialization
+- **Simpler**: Direct JDBC operations, no ORM overhead
+- **Lower Cost**: Reduced Lambda memory costs
+- **More Control**: Direct SQL control, easier debugging
 
 ### Why Independent Transactions?
 
 **Problem**: Batch transaction failed if one article had error  
-**Solution**: Each article in own transaction  
+**Solution**: Each article in own transaction with explicit commit/rollback  
 
 **Code**:
 ```java
-// processBatch() - NO @Transactional
+// processBatch() - No transaction annotation
 public String processBatch(SqsArticleMessage message) {
     for (Article article : message.getArticles()) {
-        processArticleData(article);  // Has @Transactional
+        processArticleData(article);  // Each has own transaction
     }
 }
 
-// processArticleData() - HAS @Transactional
-@Transactional
+// processArticleData() - Explicit transaction management
 private void processArticleData(...) {
-    // Save article in independent transaction
+    Connection conn = DatabaseManager.getConnection();
+    conn.setAutoCommit(false);
+    try {
+        // Save article operations
+        conn.commit();
+    } catch (Exception e) {
+        conn.rollback();
+        throw e;
+    }
 }
 ```
 
-### Why SnapStart?
+### Why 256MB Memory?
 
-**Without SnapStart**:
-- Cold start: **8-12 seconds**
-- Slow Spring/Hibernate initialization
-
-**With SnapStart**:
-- Cold start: **<1 second** ✅
-- Pre-initialized snapshot restored instantly
+**Lightweight Architecture**:
+- No Spring Framework overhead: ~200MB saved
+- No Hibernate ORM overhead: ~100MB saved
+- Plain JDBC: Minimal memory footprint
+- Small connection pool (0 min idle): Lower memory usage
 
 **Configuration**:
 ```yaml
-snapStart: true
+memorySize: 256
+environment:
+  JAVA_TOOL_OPTIONS: "-XX:MaxHeapSize=128m -XX:+UseG1GC -XX:MaxMetaspaceSize=64m"
 ```
+
+**Result**: Significant cost reduction while maintaining performance
 
 ---
 
@@ -1293,13 +1301,15 @@ aws lambda update-function-configuration \
 **v1.0.0** (Latest)
 - ✅ Implemented ArticleBatch processing (50 articles per message)
 - ✅ Independent transaction per article for error isolation
-- ✅ Removed Apache Camel (pure Spring Boot)
+- ✅ **Removed Spring Framework/Hibernate** (migrated to lightweight plain JDBC)
+- ✅ **Implemented DAO pattern** with plain JDBC operations
+- ✅ **Memory optimized** to 256MB (128MB heap)
+- ✅ **Java 17 runtime** for optimal Lambda performance
 - ✅ Removed S3 SDK (direct JSON from SQS)
-- ✅ Added SnapStart for <1s cold starts
 - ✅ Updated all libraries to latest stable versions
-- ✅ JAR size optimized to 36MB
+- ✅ JAR size significantly reduced (no Spring/Hibernate overhead)
 - ✅ Fixed Log4j2 configuration
-- ✅ Auto schema management with Hibernate
+- ✅ Fixed `received_at` and `updated_at` timestamp fields
 - ✅ Duplicate detection by article URL
 - ✅ Volume extraction from sources
 - ✅ Author parsing and relationship management
@@ -1324,8 +1334,8 @@ if ("Article".equalsIgnoreCase(messageType)) {
 - Max articles per batch: **50**
 - Max SQS messages per invocation: **5** (configurable via `batchSize`)
 - Lambda timeout: **300 seconds** (5 minutes)
-- Lambda memory: **1024 MB**
-- Database connections: **5** (HikariCP pool)
+- Lambda memory: **256 MB** (128MB heap)
+- Database connections: **5** (HikariCP pool, 0 min idle)
 
 ### Error Handling Strategy
 

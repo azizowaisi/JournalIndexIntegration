@@ -1,40 +1,29 @@
 package com.teckiz.journalindex.service;
 
+import com.teckiz.journalindex.dao.ArticleDao;
+import com.teckiz.journalindex.dao.AuthorDao;
+import com.teckiz.journalindex.dao.JournalDao;
+import com.teckiz.journalindex.dao.VolumeDao;
 import com.teckiz.journalindex.entity.*;
 import com.teckiz.journalindex.model.SqsArticleMessage;
-import com.teckiz.journalindex.repository.IndexJournalArticleRepository;
-import com.teckiz.journalindex.repository.IndexJournalRepository;
-import com.teckiz.journalindex.repository.IndexJournalVolumeRepository;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Service to process JSON articles from SQS messages
+ * Lightweight implementation without Spring Framework
  */
-@Service
 public class JsonArticleProcessor {
-
-    private static final Logger logger = LogManager.getLogger(JsonArticleProcessor.class);
-
-    @Autowired
-    private IndexJournalRepository journalRepository;
-
-    @Autowired
-    private IndexJournalArticleRepository articleRepository;
     
-    @Autowired
-    private IndexJournalVolumeRepository volumeRepository;
-
+    private static final Logger logger = LogManager.getLogger(JsonArticleProcessor.class);
+    
     /**
      * Process batch of articles from SQS JSON message
-     * Note: No @Transactional here - each article gets its own transaction via processArticleData()
      */
     public String processBatch(SqsArticleMessage message) {
         try {
@@ -78,7 +67,6 @@ public class JsonArticleProcessor {
     /**
      * Process a single article from SQS JSON message
      */
-    @Transactional
     public String processArticle(SqsArticleMessage message) {
         try {
             logger.info("Processing single article from JSON message");
@@ -108,15 +96,10 @@ public class JsonArticleProcessor {
             logger.info("Processing article: {}", articleData.getTitle());
             
             // Find or create the journal
-            IndexJournal journal = journalRepository.findByJournalKey(journalKey)
-                    .orElseGet(() -> {
-                        logger.info("Journal not found, creating new journal: {}", journalKey);
-                        IndexJournal newJournal = new IndexJournal();
-                        newJournal.setJournalKey(journalKey);
-                        newJournal.setWebsite(oaiUrl);
-                        newJournal.setPublisher(articleData.getPublisher());
-                        return journalRepository.save(newJournal);
-                    });
+            IndexJournal journal = JournalDao.findOrCreateByJournalKey(
+                    journalKey, 
+                    oaiUrl, 
+                    articleData.getPublisher());
             
             logger.info("Using journal ID: {}", journal.getId());
             
@@ -126,14 +109,7 @@ public class JsonArticleProcessor {
                 String volumeNumber = extractVolume(articleData.getSources().get(0));
                 if (volumeNumber != null) {
                     // Try to find existing volume by journal and volume number
-                    volume = volumeRepository.findByIndexJournalIdAndVolumeNumber(journal.getId(), volumeNumber)
-                            .orElseGet(() -> {
-                                logger.info("Creating new volume: {} for journal ID: {}", volumeNumber, journal.getId());
-                                IndexJournalVolume newVolume = new IndexJournalVolume();
-                                newVolume.setIndexJournal(journal);
-                                newVolume.setVolumeNumber(volumeNumber);
-                                return volumeRepository.save(newVolume);
-                            });
+                    volume = VolumeDao.findOrCreateByJournalIdAndVolumeNumber(journal.getId(), volumeNumber);
                     logger.info("Using volume ID: {}", volume.getId());
                 }
             }
@@ -141,7 +117,7 @@ public class JsonArticleProcessor {
             // Check if article already exists by identifier URL
             IndexJournalArticle existingArticle = null;
             if (articleData.getIdentifier() != null) {
-                existingArticle = articleRepository.findByPageURL(articleData.getIdentifier()).orElse(null);
+                existingArticle = ArticleDao.findByPageURL(articleData.getIdentifier()).orElse(null);
             }
             
             IndexJournalArticle article;
@@ -161,6 +137,11 @@ public class JsonArticleProcessor {
             // Set volume relationship
             if (volume != null) {
                 article.setIndexJournalVolume(volume);
+            }
+            
+            // Set company from journal (if journal has company)
+            if (journal.getCompany() != null) {
+                article.setCompany(journal.getCompany());
             }
             
             // Parse and set published date
@@ -191,7 +172,7 @@ public class JsonArticleProcessor {
             }
             
             // Save article
-            article = articleRepository.save(article);
+            article = ArticleDao.save(article);
             logger.info("✅ Article saved with ID: {}", article.getId());
             
             // Process authors
@@ -212,29 +193,23 @@ public class JsonArticleProcessor {
      */
     private void processAuthors(IndexJournalArticle article, String creatorString) {
         try {
-            // Clear existing authors
-            if (article.getAuthors() != null) {
-                article.getAuthors().clear();
-            } else {
-                article.setAuthors(new ArrayList<>());
-            }
-            
             // Split by comma or semicolon
             String[] authorNames = creatorString.split("[,;]");
+            List<String> authorNameList = new ArrayList<>();
             
             for (String authorName : authorNames) {
                 authorName = authorName.trim();
                 if (!authorName.isEmpty()) {
-                    IndexJournalAuthor author = new IndexJournalAuthor();
-                    author.setIndexJournalArticle(article);
-                    author.setName(authorName);
-                    article.getAuthors().add(author);
-                    logger.info("Added author: {}", authorName);
+                    authorNameList.add(authorName);
+                    logger.debug("Added author: {}", authorName);
                 }
             }
             
-            articleRepository.save(article);
-            logger.info("✅ Saved {} authors", article.getAuthors().size());
+            // Save authors using DAO
+            if (!authorNameList.isEmpty()) {
+                AuthorDao.saveAuthors(article.getId(), authorNameList);
+                logger.info("✅ Saved {} authors", authorNameList.size());
+            }
             
         } catch (Exception e) {
             logger.error("Error processing authors: {}", e.getMessage(), e);

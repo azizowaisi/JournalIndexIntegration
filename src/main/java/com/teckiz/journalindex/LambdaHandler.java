@@ -4,50 +4,40 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SQSEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.teckiz.journalindex.model.SqsArticleMessage;
 import com.teckiz.journalindex.service.JsonArticleProcessor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 /**
  * AWS Lambda handler for processing SQS messages containing article data
- * Processes JSON messages directly from SQS and saves to MySQL
+ * Lightweight implementation - no Spring Framework dependencies
+ * Processes JSON messages directly from SQS and saves to MySQL using plain JDBC
  */
 public class LambdaHandler implements RequestHandler<SQSEvent, String> {
     
     private static final Logger logger = LogManager.getLogger(LambdaHandler.class);
-    private static volatile AnnotationConfigApplicationContext springContext;
     private static volatile JsonArticleProcessor articleProcessor;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private static final Object initLock = new Object();
     
+    public LambdaHandler() {
+        // Configure ObjectMapper to ignore unknown properties
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+    
     /**
-     * Initialize Spring context lazily on first request instead of in static block
-     * This prevents Lambda initialization timeout (10 second limit)
+     * Initialize article processor lazily on first request
      */
-    private static void initializeSpringContext() {
-        if (springContext == null) {
+    private static void initializeProcessor() {
+        if (articleProcessor == null) {
             synchronized (initLock) {
-                if (springContext == null) {
-                    try {
-                        logger.info("=== INITIALIZING SPRING CONTEXT (LAZY) ===");
-                        
-                        // Initialize Spring context
-                        springContext = new AnnotationConfigApplicationContext();
-                        springContext.register(com.teckiz.journalindex.config.ApplicationConfig.class);
-                        springContext.refresh();
-                        logger.info("Spring context initialized");
-                        
-                        // Get article processor service
-                        articleProcessor = springContext.getBean(JsonArticleProcessor.class);
-                        logger.info("JsonArticleProcessor bean retrieved");
-
-                        logger.info("Spring context initialized successfully");
-                    } catch (Exception e) {
-                        logger.error("Failed to initialize Spring context", e);
-                        throw new RuntimeException("Failed to initialize Spring context", e);
-                    }
+                if (articleProcessor == null) {
+                    logger.info("=== INITIALIZING LIGHTWEIGHT ARTICLE PROCESSOR ===");
+                    articleProcessor = new JsonArticleProcessor();
+                    logger.info("✅ Article processor initialized successfully");
                 }
             }
         }
@@ -62,8 +52,18 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
         logger.info("Lambda Remaining Time: {} ms", context.getRemainingTimeInMillis());
         logger.info("Lambda Memory Limit: {} MB", context.getMemoryLimitInMB());
         
-        // Initialize Spring context lazily on first request
-        initializeSpringContext();
+        // Initialize processor lazily (first request only)
+        try {
+            initializeProcessor();
+            if (articleProcessor == null) {
+                logger.error("Article processor is still null after initialization!");
+                throw new RuntimeException("Failed to initialize JsonArticleProcessor");
+            }
+            logger.info("Article processor ready");
+        } catch (Exception e) {
+            logger.error("Failed to initialize article processor: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to initialize article processor: " + e.getMessage(), e);
+        }
         
         logger.info("Received SQS event with {} records", sqsEvent.getRecords().size());
         logger.info("SQS Event Source ARN: {}", sqsEvent.getRecords().isEmpty() ? "N/A" : sqsEvent.getRecords().get(0).getEventSourceArn());
@@ -96,7 +96,7 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                 logger.info("Message Body Length: {}", message.getBody().length());
                 
                 String messageBody = message.getBody();
-                logger.info("Raw Message Body: {}", messageBody.length() > 500 ? messageBody.substring(0, 500) + "..." : messageBody);
+                logger.debug("Raw Message Body: {}", messageBody.length() > 500 ? messageBody.substring(0, 500) + "..." : messageBody);
 
                 try {
                     // Parse the message body as SqsArticleMessage
@@ -130,6 +130,15 @@ public class LambdaHandler implements RequestHandler<SQSEvent, String> {
                     logger.info("Validation passed - Processing article for journal: {}", articleMessage.getJournalKey());
 
                     try {
+                        // Ensure processor is initialized
+                        if (articleProcessor == null) {
+                            logger.error("articleProcessor is null! Attempting to reinitialize...");
+                            initializeProcessor();
+                            if (articleProcessor == null) {
+                                throw new RuntimeException("articleProcessor is still null after reinitialization");
+                            }
+                        }
+                        
                         long processingStart = System.currentTimeMillis();
                         
                         // Route based on message type
